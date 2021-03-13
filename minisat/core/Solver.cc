@@ -485,7 +485,10 @@ void Solver::analyzeFinal(Lit p, LSet& out_conflict)
 
 void Solver::uncheckedEnqueue(Lit p, CRef from)
 {
+    // Assert that variable(literal) p is unassigned
     assert(value(p) == l_Undef);
+    // For reference: l_True = 0, l_False = 1, l_Undef = 2
+    // Assign the value that makes the current literal True
     assigns[var(p)] = lbool(!sign(p));
     vardata[var(p)] = mkVarData(from, decisionLevel());
     trail.push_(p);
@@ -536,11 +539,13 @@ CRef Solver::propagate()
                 *j++ = w; continue; }
 
             // Look for new watch:
-            for (int k = 2; k < c.size(); k++)
+            for (int k = 2; k < c.size(); k++) {
                 if (value(c[k]) != l_False){
                     c[1] = c[k]; c[k] = false_lit;
                     watches[~c[1]].push(w);
-                    goto NextClause; }
+                    goto NextClause; 
+                }
+            }
 
             // Did not find watch -- clause is unit under assignment:
             *j++ = w;
@@ -838,6 +843,7 @@ static double luby(double y, int x){
 // NOTE: assumptions passed in member-variable 'assumptions'.
 lbool Solver::solve_()
 {
+    // printf("Starting MiniSAT solver.\n");
     model.clear();
     conflict.clear();
     if (!ok) return l_False;
@@ -880,6 +886,10 @@ lbool Solver::solve_()
         ok = false;
 
     cancelUntil(0);
+    // printf("Leaving MiniSAT solver.\n");
+    // if (status == l_False) printf("UNSAT.\n");
+    // else if (status == l_True) printf("SAT.\n");
+    // else printf("UNSOLVED.\n");
     return status;
 }
 
@@ -992,11 +1002,11 @@ void Solver::printStats() const
 {
     double cpu_time = cpuTime();
     double mem_used = memUsedPeak();
-    printf("restarts              : %"PRIu64"\n", starts);
-    printf("conflicts             : %-12"PRIu64"   (%.0f /sec)\n", conflicts   , conflicts   /cpu_time);
-    printf("decisions             : %-12"PRIu64"   (%4.2f %% random) (%.0f /sec)\n", decisions, (float)rnd_decisions*100 / (float)decisions, decisions   /cpu_time);
-    printf("propagations          : %-12"PRIu64"   (%.0f /sec)\n", propagations, propagations/cpu_time);
-    printf("conflict literals     : %-12"PRIu64"   (%4.2f %% deleted)\n", tot_literals, (max_literals - tot_literals)*100 / (double)max_literals);
+    printf("restarts              : %" PRIu64 "\n", starts);
+    printf("conflicts             : %-12" PRIu64 "   (%.0f /sec)\n", conflicts   , conflicts   /cpu_time);
+    printf("decisions             : %-12" PRIu64 "   (%4.2f %% random) (%.0f /sec)\n", decisions, (float)rnd_decisions*100 / (float)decisions, decisions   /cpu_time);
+    printf("propagations          : %-12" PRIu64 "   (%.0f /sec)\n", propagations, propagations/cpu_time);
+    printf("conflict literals     : %-12" PRIu64 "   (%4.2f %% deleted)\n", tot_literals, (max_literals - tot_literals)*100 / (double)max_literals);
     if (mem_used != 0) printf("Memory used           : %.2f MB\n", mem_used);
     printf("CPU time              : %g s\n", cpu_time);
 }
