@@ -24,7 +24,22 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "minisat/mtl/Sort.h"
 #include "minisat/utils/System.h"
 #include "minisat/core/Solver.h"
-#include "cuda.cuh"
+
+#define CL_NOCHANGE 0
+#define CL_NEWBLOCK 1
+#define CL_NEWWATCH 2
+#define CL_UNIT     3
+#define CL_CONFLICT 4
+
+#define VAR(x) (x >> 1)
+#define SIGN(x) (x & 1)
+#define VALUE(x, assigns) (assigns[x >> 1] ^ (x & 1))
+
+#define LT ((uint8_t)0)
+#define LF ((uint8_t)1)
+#define LU ((uint8_t)2)
+
+int check_watcher(int blocker, int p, int* c, unsigned c_size, uint8_t* assigns);
 
 using namespace Minisat;
 
@@ -495,7 +510,7 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
     trail.push_(p);
 }
 
-// #define CUDATEST
+#define CUDATEST
 /*_________________________________________________________________________________________________
 |
 |  propagate : [void]  ->  [Clause*]
@@ -523,17 +538,19 @@ CRef Solver::propagate()
             Lit blocker = i->blocker;
 #ifdef CUDATEST
             CRef cr = i->cref;
-            Clause c = ca[cr];
-            int retVal = CUDASOLVER::check_watcher(toInt(blocker),
-                toInt(p), (int*)&c[0], c.size(),
+            Clause& c = ca[cr];
+            int* rawC = (int*)malloc(c.size() * sizeof(int));
+            memcpy(rawC, &c[0], c.size() * sizeof(int));
+            int retVal = check_watcher(toInt(blocker),
+                toInt(p), rawC, c.size(),
                 (uint8_t*)assigns.begin());
-            ca[cr] = c;
+            memcpy(&c[0], rawC, c.size() * sizeof(int));
             Lit first = c[0];
             Watcher w = Watcher(cr, first);
             bool flag = false;
             switch (retVal)
             {
-            case CL_NOCHANGE: *j++ = *i++; break;
+            case CL_NOCHANGE: *j++ = *i; break;
             case CL_NEWBLOCK: *j++ = w; break;
             case CL_NEWWATCH: watches[~c[1]].push(w); break;
             case CL_UNIT: *j++ = w; uncheckedEnqueue(first, cr); break;
@@ -545,9 +562,7 @@ CRef Solver::propagate()
                 while (i < end) *j++ = *i++;
                 flag = true;
                 break;
-            
-            default:
-                break;
+            default: break;
             }
             if (flag) break;
 #else
@@ -557,6 +572,12 @@ CRef Solver::propagate()
             // Make sure the false literal is data[1]:
             CRef     cr        = i->cref;
             Clause&  c         = ca[cr];
+            Lit*     rawC      = &c[0];
+            assert(LT == toInt(l_True));
+            assert(LF == toInt(l_False));
+            for (int n = 0; n < c.size(); n++) {
+                assert(rawC[n] == c[n]);
+            }
             Lit      false_lit = ~p;
             if (c[0] == false_lit) {
                 c[0] = c[1], c[1] = false_lit;
@@ -566,6 +587,7 @@ CRef Solver::propagate()
             // If 0th watch is true, then clause is already satisfied.
             Lit     first = c[0];
             Watcher w     = Watcher(cr, first);
+            assert(value(first) == VALUE(first.x, assigns.begin()));
             if (value(first) == l_True){
                 *j++ = w; continue; }
 
@@ -592,12 +614,12 @@ CRef Solver::propagate()
                 break;
             }else
                 uncheckedEnqueue(first, cr);
+#endif
         }
         ws.shrink(i - j);
     }
     propagations += num_props;
     simpDB_props -= num_props;
-#endif
 
     return confl;
 }
@@ -1107,4 +1129,52 @@ void Solver::garbageCollect()
         printf("|  Garbage collection:   %12d bytes => %12d bytes             |\n", 
                ca.size()*ClauseAllocator::Unit_Size, to.size()*ClauseAllocator::Unit_Size);
     to.moveTo(ca);
+}
+
+// Cuda functions
+
+/* check_watcher
+ * Possible outcomes:
+ * - Clause already satisfied (blocker == true) -- do nothing
+ * - Clause already satisfied (blocker != true) -- update current blocker
+ * - Clause undetermined (At least 2 unassigned vars) -- watch another literal
+ * - Clause unit -- unit propagation
+ * - Clause unsatisfied -- keep the remaining clauses and terminate
+ * Return true if watcher needs to be updated. false if not
+ */
+int check_watcher(int blocker, int p, int* c, unsigned c_size, uint8_t* assigns) {
+    if (VALUE(blocker, assigns) == LT) {
+        return CL_NOCHANGE; // Clause Satisfied
+    }
+    
+    int first = c[0];
+    int false_lit = p ^ 1;
+    if (first == false_lit) {
+        c[0] = c[1];
+        c[1] = false_lit;
+    }
+    assert(c[1] == false_lit);
+
+    first = c[0];
+    if (VALUE(first, assigns) == LT) {
+        // update blcker
+        return CL_NEWBLOCK;
+    }
+
+    // Look for new watch (i.e unassigned variable):
+    for (int k = 2; k < c_size; k++) {
+        if (VALUE(c[k], assigns) != LF) {
+            c[1] = c[k]; c[k] = false_lit;
+            // watch new literal
+            return CL_NEWWATCH;
+        }
+    }
+
+    if (VALUE(first, assigns) == LF) {
+        // conflict
+        return CL_CONFLICT;
+    } else {
+        // unit clause;
+        return CL_UNIT;
+    }
 }
