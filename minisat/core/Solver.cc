@@ -527,15 +527,16 @@ CRef Solver::propagate()
             CRef     cr        = i->cref;
             Clause&  c         = ca[cr];
             Lit      false_lit = ~p;
-            if (c[0] == false_lit)
+            if (c[0] == false_lit) {
                 c[0] = c[1], c[1] = false_lit;
+            }
             assert(c[1] == false_lit);
             i++;
 
             // If 0th watch is true, then clause is already satisfied.
             Lit     first = c[0];
             Watcher w     = Watcher(cr, first);
-            if (first != blocker && value(first) == l_True){
+            if (value(first) == l_True){
                 *j++ = w; continue; }
 
             // Look for new watch:
