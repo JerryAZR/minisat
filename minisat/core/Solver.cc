@@ -24,6 +24,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "minisat/mtl/Sort.h"
 #include "minisat/utils/System.h"
 #include "minisat/core/Solver.h"
+#include "cuda.cuh"
 
 using namespace Minisat;
 
@@ -494,7 +495,7 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
     trail.push_(p);
 }
 
-
+// #define CUDATEST
 /*_________________________________________________________________________________________________
 |
 |  propagate : [void]  ->  [Clause*]
@@ -517,11 +518,41 @@ CRef Solver::propagate()
         Watcher        *i, *j, *end;
         num_props++;
 
-        for (i = j = (Watcher*)ws, end = i + ws.size();  i != end;){
+        for (i = j = (Watcher*)ws, end = i + ws.size(); i != end; i++){
             // Try to avoid inspecting the clause:
             Lit blocker = i->blocker;
+#ifdef CUDATEST
+            CRef cr = i->cref;
+            Clause c = ca[cr];
+            int retVal = CUDASOLVER::check_watcher(toInt(blocker),
+                toInt(p), (int*)&c[0], c.size(),
+                (uint8_t*)assigns.begin());
+            ca[cr] = c;
+            Lit first = c[0];
+            Watcher w = Watcher(cr, first);
+            bool flag = false;
+            switch (retVal)
+            {
+            case CL_NOCHANGE: *j++ = *i++; break;
+            case CL_NEWBLOCK: *j++ = w; break;
+            case CL_NEWWATCH: watches[~c[1]].push(w); break;
+            case CL_UNIT: *j++ = w; uncheckedEnqueue(first, cr); break;
+            case CL_CONFLICT:
+                *j++ = w;
+                confl = cr;
+                qhead = trail.size();
+                // Copy the remaining watches:
+                while (i < end) *j++ = *i++;
+                flag = true;
+                break;
+            
+            default:
+                break;
+            }
+            if (flag) break;
+#else
             if (value(blocker) == l_True){
-                *j++ = *i++; continue; }
+                *j++ = *i; continue; }
 
             // Make sure the false literal is data[1]:
             CRef     cr        = i->cref;
@@ -531,7 +562,6 @@ CRef Solver::propagate()
                 c[0] = c[1], c[1] = false_lit;
             }
             assert(c[1] == false_lit);
-            i++;
 
             // If 0th watch is true, then clause is already satisfied.
             Lit     first = c[0];
@@ -540,13 +570,16 @@ CRef Solver::propagate()
                 *j++ = w; continue; }
 
             // Look for new watch:
+            bool flag = false;
             for (int k = 2; k < c.size(); k++) {
                 if (value(c[k]) != l_False){
                     c[1] = c[k]; c[k] = false_lit;
                     watches[~c[1]].push(w);
-                    goto NextClause; 
+                    flag = true;
+                    break;
                 }
             }
+            if (flag) continue;
 
             // Did not find watch -- clause is unit under assignment:
             *j++ = w;
@@ -556,15 +589,15 @@ CRef Solver::propagate()
                 // Copy the remaining watches:
                 while (i < end)
                     *j++ = *i++;
+                break;
             }else
                 uncheckedEnqueue(first, cr);
-
-        NextClause:;
         }
         ws.shrink(i - j);
     }
     propagations += num_props;
     simpDB_props -= num_props;
+#endif
 
     return confl;
 }
