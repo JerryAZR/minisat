@@ -533,7 +533,7 @@ CRef Solver::propagate()
         Watcher        *i, *j, *end;
         num_props++;
 
-        for (i = j = (Watcher*)ws, end = i + ws.size(); i != end; i++){
+        for (i = j = (Watcher*)ws, end = i + ws.size(); i != end;){
             // Try to avoid inspecting the clause:
             Lit blocker = i->blocker;
 #ifdef CUDATEST
@@ -545,16 +545,18 @@ CRef Solver::propagate()
                 toInt(p), rawC, c.size(),
                 (uint8_t*)assigns.begin());
             memcpy(&c[0], rawC, c.size() * sizeof(int));
+            free(rawC);
             Lit first = c[0];
             Watcher w = Watcher(cr, first);
             bool flag = false;
             switch (retVal)
             {
-            case CL_NOCHANGE: *j++ = *i; break;
-            case CL_NEWBLOCK: *j++ = w; break;
-            case CL_NEWWATCH: watches[~c[1]].push(w); break;
-            case CL_UNIT: *j++ = w; uncheckedEnqueue(first, cr); break;
+            case CL_NOCHANGE: *j++ = *i++; break;
+            case CL_NEWBLOCK: *j++ = w; i++; break;
+            case CL_NEWWATCH: i++; watches[~c[1]].push(w); break;
+            case CL_UNIT: i++; *j++ = w; uncheckedEnqueue(first, cr); break;
             case CL_CONFLICT:
+                i++;
                 *j++ = w;
                 confl = cr;
                 qhead = trail.size();
@@ -567,7 +569,7 @@ CRef Solver::propagate()
             if (flag) break;
 #else
             if (value(blocker) == l_True){
-                *j++ = *i; continue; }
+                *j++ = *i++; continue; }
 
             // Make sure the false literal is data[1]:
             CRef     cr        = i->cref;
@@ -583,6 +585,7 @@ CRef Solver::propagate()
                 c[0] = c[1], c[1] = false_lit;
             }
             assert(c[1] == false_lit);
+            i++;
 
             // If 0th watch is true, then clause is already satisfied.
             Lit     first = c[0];
