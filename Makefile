@@ -61,8 +61,8 @@ SORELEASE?=.0#   Declare empty to leave out from library file name.
 
 NVCC=nvcc
 MINISAT_CXXFLAGS = -I. -D __STDC_LIMIT_MACROS -D __STDC_FORMAT_MACROS -Wall -Wno-parentheses -Wextra
-MINISAT_NVCCFLAGS = -Werror all-warnings -I. -D __STDC_LIMIT_MACROS -D __STDC_FORMAT_MACROS
-MINISAT_LDFLAGS  = -Wall -lz -L/usr/lib/cuda/lib64 -lcudart
+MINISAT_NVCCFLAGS = -Xcompiler "$(MINISAT_CXXFLAGS)"
+MINISAT_LDFLAGS  = -lz -L/usr/lib/cuda/lib64 -lcudart
 
 ECHO=@echo
 ifeq ($(VERB),)
@@ -174,7 +174,7 @@ $(BUILD_DIR)/release/bin/$(MINISAT) $(BUILD_DIR)/debug/bin/$(MINISAT) $(BUILD_DI
 $(BUILD_DIR)/release/bin/$(MINISAT_CORE) $(BUILD_DIR)/debug/bin/$(MINISAT_CORE) $(BUILD_DIR)/profile/bin/$(MINISAT_CORE) $(BUILD_DIR)/dynamic/bin/$(MINISAT_CORE):
 	$(ECHO) Linking Binary: $@
 	$(VERB) mkdir -p $(dir $@)
-	$(VERB) $(CXX) $^ $(MINISAT_LDFLAGS) $(LDFLAGS) -o $@ -Xlinker --verbose
+	$(VERB) $(CXX) $^ $(MINISAT_LDFLAGS) $(LDFLAGS) -o $@
 
 ## Static Library rule
 %/lib/$(MINISAT_SLIB):
@@ -188,7 +188,7 @@ $(BUILD_DIR)/dynamic/lib/$(MINISAT_DLIB).$(SOMAJOR).$(SOMINOR)$(SORELEASE)\
  $(BUILD_DIR)/dynamic/lib/$(MINISAT_DLIB):
 	$(ECHO) Linking Shared Library: $@
 	$(VERB) mkdir -p $(dir $@)
-	$(VERB) $(CXX) $(MINISAT_LDFLAGS) $(LDFLAGS) -o $@ -shared -Wl,-soname,$(MINISAT_DLIB).$(SOMAJOR) $^
+	$(VERB) $(NVCC) $(MINISAT_LDFLAGS) $(LDFLAGS) -o $@ --shared $^
 	$(VERB) ln -sf $(MINISAT_DLIB).$(SOMAJOR).$(SOMINOR)$(SORELEASE) $(BUILD_DIR)/dynamic/lib/$(MINISAT_DLIB).$(SOMAJOR)
 	$(VERB) ln -sf $(MINISAT_DLIB).$(SOMAJOR) $(BUILD_DIR)/dynamic/lib/$(MINISAT_DLIB)
 

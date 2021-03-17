@@ -544,9 +544,9 @@ CRef Solver::propagate()
                 confl = cr;
                 qhead = trail.size();
                 // Copy the remaining watches:
-                // i++;
-                // while (i < end) *j++ = *i++;
-                // flag = true;
+                i++;
+                while (i < end) *j++ = *i++;
+                flag = true;
                 // What happens if I keep moving forward?
                 break;
             default: break;
