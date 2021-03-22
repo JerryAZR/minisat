@@ -4,11 +4,12 @@
 #include <stdlib.h>
 
 using std::vector;
-// #define CUDATEST
+#define CUDATEST
 
 // interface (CPU) functions
 using namespace Minisat;
 
+void propagateTest(int clauseCount, int* clauses, int* clausesEnd, uint8_t* assigns, int* actions);
 
 /*_________________________________________________________________________________________________
 |
@@ -38,12 +39,13 @@ CRef Solver::propagate()
         int totalSize = 0;
         int clauseCount = 0;
         int watcherCount = 0;
-        int diffSize = 0;
         // Determine the size of each clause
         for (int idx = 0; idx < ws.size(); idx++) {
             Lit blocker = ws[idx].blocker;
             if (value(blocker) == l_True) {
+                Watcher tmp = ws[watcherCount];
                 ws[watcherCount++] = ws[idx];
+                ws[idx] = tmp;
                 continue;
             }
             Clause& cl = ca[ws[idx].cref];
@@ -61,83 +63,81 @@ CRef Solver::propagate()
         }
         int* hostActions = (int*)malloc(clauseCount * sizeof(int));
         if (clauseCount) {
-            int* deviceActions, * deviceClauses, * deviceEnds;
-            uint8_t* deviceAssigns;
-            int* numConflicts, * conflictIndices;
-            cudaMalloc(&deviceActions, clauseCount * sizeof(int));
-            cudaMalloc(&deviceClauses, totalSize * sizeof(int));
-            cudaMalloc(&deviceEnds, clauseCount * sizeof(int));
-            cudaMalloc(&deviceAssigns, assigns.size() * sizeof(uint8_t));
-            cudaMalloc(&conflictIndices, clauseCount * sizeof(int));
-            cudaMalloc(&numConflicts, sizeof(int));
-            cudaMemset(numConflicts, 0, sizeof(int));
+            propagateTest(clauseCount, hostClauses.data(), hostEnds, (uint8_t*)assigns.begin(), hostActions);
+        //     int* deviceActions, * deviceClauses, * deviceEnds;
+        //     uint8_t* deviceAssigns;
+        //     int* numConflicts, * conflictIndices;
+        //     cudaMalloc(&deviceActions, clauseCount * sizeof(int));
+        //     cudaMalloc(&deviceClauses, totalSize * sizeof(int));
+        //     cudaMalloc(&deviceEnds, clauseCount * sizeof(int));
+        //     cudaMalloc(&deviceAssigns, assigns.size() * sizeof(uint8_t));
+        //     cudaMalloc(&conflictIndices, clauseCount * sizeof(int));
+        //     cudaMalloc(&numConflicts, sizeof(int));
+        //     cudaMemset(numConflicts, 0, sizeof(int));
 
-            cudaMemcpy(deviceEnds, hostEnds, clauseCount * sizeof(int), cudaMemcpyHostToDevice);
-            cudaMemcpy(deviceClauses, hostClauses.data(), totalSize * sizeof(int), cudaMemcpyHostToDevice);
-            cudaMemcpy(deviceAssigns, assigns.begin(), assigns.size() * sizeof(uint8_t), cudaMemcpyHostToDevice);
+        //     cudaMemcpy(deviceEnds, hostEnds, clauseCount * sizeof(int), cudaMemcpyHostToDevice);
+        //     cudaMemcpy(deviceClauses, hostClauses.data(), totalSize * sizeof(int), cudaMemcpyHostToDevice);
+        //     cudaMemcpy(deviceAssigns, assigns.begin(), assigns.size() * sizeof(uint8_t), cudaMemcpyHostToDevice);
 
-            const size_t blockSize = 32;
-            size_t gridSize = ((totalSize-1) / blockSize) + 1;
-            propagateKernel<<<gridSize, blockSize>>>(clauseCount, deviceClauses, deviceEnds, deviceAssigns, deviceActions);
-            cudaDeviceSynchronize();
+        //     const size_t blockSize = 32;
+        //     size_t gridSize = ((totalSize-1) / blockSize) + 1;
+        //     propagateKernel<<<gridSize, blockSize>>>(clauseCount, deviceClauses, deviceEnds, deviceAssigns, deviceActions);
+        //     cudaDeviceSynchronize();
 
-            cudaMemcpy(hostActions, deviceActions, clauseCount * sizeof(int), cudaMemcpyDeviceToHost);
-            cudaMemcpy(hostClauses.data(), deviceClauses, totalSize * sizeof(int), cudaMemcpyDeviceToHost);
+        //     cudaMemcpy(hostActions, deviceActions, clauseCount * sizeof(int), cudaMemcpyDeviceToHost);
+        //     cudaMemcpy(hostClauses.data(), deviceClauses, totalSize * sizeof(int), cudaMemcpyDeviceToHost);
 
-            cudaFree(deviceClauses);
-            cudaFree(deviceAssigns);
-            cudaFree(deviceEnds);
-            cudaFree(deviceActions);
-            cudaFree(numConflicts);
-            cudaFree(conflictIndices);
+        //     cudaFree(deviceClauses);
+        //     cudaFree(deviceAssigns);
+        //     cudaFree(deviceEnds);
+        //     cudaFree(deviceActions);
+        //     cudaFree(numConflicts);
+        //     cudaFree(conflictIndices);
         }
         
-        bool flag = false;
         // Iterate over the returned clauses and update the data on CPU
-        for (int idx = 0; idx < clauseCount; idx++) {
-            int action = hostActions[idx];
-            CRef cr = hostCrefs[idx];
-            int beginIdx = (idx == 0) ? 0 : hostEnds[idx-1];
+        int i, j; // i: read index; j: write index.
+        Watcher* wsBegin = &ws[watcherCount];
+        for (i = j = 0; i < clauseCount; i++) {
+            int action = hostActions[i];
+            CRef cr = hostCrefs[i];
+            int beginIdx = (i == 0) ? 0 : hostEnds[i-1];
             int* c = hostClauses.data() + beginIdx;
             Lit first;
             first.x = c[0];
             Watcher w = Watcher(cr, first);
             switch (action)
             {
-            case CL_NEWBLOCK: ws[watcherCount++] = w; break;
+            case CL_NEWBLOCK: wsBegin[j++] = w; break;
             case CL_NEWWATCH: 
                 Lit second;
                 second.x = c[1];
                 watches[~second].push(w);
-                assert(ca[cr].size() == (hostEnds[idx] - beginIdx));
-                memcpy(&((ca[cr])[0]), c, ca[cr].size());
-                diffSize++;
+                assert(ca[cr].size() == (hostEnds[i] - beginIdx));
+                memcpy(&((ca[cr])[0]), c, ca[cr].size() * sizeof(int));
                 break;
             case CL_UNIT: 
                 if (value(first) == l_Undef) {
                     uncheckedEnqueue(first, cr);
                 }
-                ws[watcherCount++] = w;
+                wsBegin[j++] = w;
                 break;
             case CL_CONFLICT:
-                ws[watcherCount++] = w;
+                wsBegin[j++] = w;
+                i++;
                 confl = cr;
-                // qhead = trail.size();
-                // // Copy the remaining watches:
-                // while (watcherCount + diffSize < ws.size()) {
-                //     ws[watcherCount] = ws[watcherCount + diffSize];
-                //     watcherCount++; 
-                // }
-                // flag = true;
+                qhead = trail.size();
+                // Copy the remaining watches:
+                while (i < clauseCount) {
+                    wsBegin[j++] = wsBegin[i++];                }
                 break;
             default: break;
             }
-            if (flag) break;
         }
         free(hostEnds);
         free(hostCrefs);
         free(hostActions);
-        ws.shrink(diffSize);
+        ws.shrink(i - j);
     }
     propagations += num_props;
     simpDB_props -= num_props;
@@ -156,6 +156,27 @@ CRef Solver::propagate()
         Watcher        *i, *j, *end;
         num_props++;
 
+        // Testing preprocessing
+        int watcherCount = 0;
+        for (int idx = 0; idx < ws.size(); idx++) {
+            Lit blocker = ws[idx].blocker;
+            if (value(blocker) == l_True) {
+                Watcher tmp = ws[watcherCount];
+                ws[watcherCount++] = ws[idx];
+                ws[idx] = tmp;
+                continue;
+            }
+            Clause& cl = ca[ws[idx].cref];
+            Lit false_lit = ~p;
+            if (cl[0] == false_lit) {
+                cl[0] = cl[1];
+                cl[1] = false_lit;
+            }
+        }
+
+        vector<Lit> tmpAssignments;
+        vector<CRef> tmpReason;
+        assert(tmpAssignments.size() == 0);
         for (i = j = (Watcher*)ws, end = i + ws.size(); i != end; i++){
             // Try to avoid inspecting the clause:
             Lit blocker = i->blocker;
@@ -165,12 +186,6 @@ CRef Solver::propagate()
             // Make sure the false literal is data[1]:
             CRef     cr        = i->cref;
             Clause&  c         = ca[cr];
-            Lit*     rawC      = &c[0];
-            assert(LT == toInt(l_True));
-            assert(LF == toInt(l_False));
-            for (int n = 0; n < c.size(); n++) {
-                assert(rawC[n] == c[n]);
-            }
             Lit      false_lit = ~p;
             if (c[0] == false_lit) {
                 c[0] = c[1], c[1] = false_lit;
@@ -206,8 +221,16 @@ CRef Solver::propagate()
                 while (i < end)
                     *j++ = *i++;
                 break;
-            }else
-                uncheckedEnqueue(first, cr);
+            }else {
+                tmpAssignments.push_back(first);
+                tmpReason.push_back(cr);
+                // uncheckedEnqueue(first, cr);
+            }
+        }
+        for (int idx = 0; idx < tmpAssignments.size(); idx++) {
+            if (value(tmpAssignments[idx]) == l_Undef) {
+                uncheckedEnqueue(tmpAssignments[idx], tmpReason[idx]);
+            }
         }
         ws.shrink(i - j);
     }
@@ -281,7 +304,7 @@ int checkWatcher(int blocker, int p, int* c, unsigned c_size, uint8_t* assigns) 
     }
 
     // Look for new watch (i.e unassigned variable):
-    for (int k = 2; k < c_size; k++) {
+    for (unsigned k = 2; k < c_size; k++) {
         if (VALUE(c[k], assigns) != LF) {
             c[1] = c[k]; c[k] = false_lit;
             // watch new literal
@@ -295,5 +318,40 @@ int checkWatcher(int blocker, int p, int* c, unsigned c_size, uint8_t* assigns) 
     } else {
         // unit clause;
         return CL_UNIT;
+    }
+}
+
+void propagateTest(int clauseCount, int* clauses, int* clausesEnd, uint8_t* assigns, int* actions) {
+    for(unsigned idx = 0; idx < clauseCount; idx++) {
+        int clauseStart = (idx == 0) ? 0 : clausesEnd[idx - 1];
+        int* c = clauses + clauseStart;
+        int c_size = clausesEnd[idx] - clauseStart;
+        int first = c[0];
+        if (VALUE(first, assigns) == LT) {
+            // update blcker
+            actions[idx] = CL_NEWBLOCK;
+            continue;
+        }
+        // Look for new watch (i.e unassigned variable):
+        bool flag = false;
+        for (int k = 2; k < c_size; k++) {
+            if (VALUE(c[k], assigns) != LF) {
+                int temp = c[1];
+                c[1] = c[k];
+                c[k] = temp;
+                // watch new literal
+                actions[idx] = CL_NEWWATCH;
+                flag = true;
+                break;
+            }
+        }
+        if (flag) continue;
+        if (VALUE(first, assigns) == LF) {
+            // conflict
+            actions[idx] = CL_CONFLICT;
+        } else {
+            // unit clause;
+            actions[idx] = CL_UNIT;
+        }
     }
 }
