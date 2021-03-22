@@ -24,7 +24,6 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "minisat/mtl/Sort.h"
 #include "minisat/utils/System.h"
 #include "minisat/core/Solver.h"
-#include "minisat/core/cuda.cuh"
 
 using namespace Minisat;
 
@@ -494,124 +493,6 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
     vardata[var(p)] = mkVarData(from, decisionLevel());
     trail.push_(p);
 }
-
-/*_________________________________________________________________________________________________
-|
-|  propagate : [void]  ->  [Clause*]
-|  
-|  Description:
-|    Propagates all enqueued facts. If a conflict arises, the conflicting clause is returned,
-|    otherwise CRef_Undef.
-|  
-|    Post-conditions:
-|      * the propagation queue is empty, even if there was a conflict.
-|________________________________________________________________________________________________@*/
-CRef Solver::propagate()
-{
-    CRef    confl     = CRef_Undef;
-    int     num_props = 0;
-
-    while (qhead < trail.size()){
-        Lit            p   = trail[qhead++];     // 'p' is enqueued fact to propagate.
-        vec<Watcher>&  ws  = watches.lookup(p);
-        Watcher        *i, *j, *end;
-        num_props++;
-
-        for (i = j = (Watcher*)ws, end = i + ws.size(); i != end; i++){
-            // Try to avoid inspecting the clause:
-            Lit blocker = i->blocker;
-#ifdef CUDATEST
-            CRef cr = i->cref;
-            Clause& c = ca[cr];
-            int* rawC = (int*)malloc(c.size() * sizeof(int));
-            memcpy(rawC, &c[0], c.size() * sizeof(int));
-            int retVal = check_watcher(toInt(blocker),
-                toInt(p), rawC, c.size(),
-                (uint8_t*)assigns.begin());
-            memcpy(&c[0], rawC, c.size() * sizeof(int));
-            free(rawC);
-            Lit first = c[0];
-            Watcher w = Watcher(cr, first);
-            bool flag = false;
-            switch (retVal)
-            {
-            case CL_NOCHANGE: *j++ = *i; break;
-            case CL_NEWBLOCK: *j++ = w; break;
-            case CL_NEWWATCH: watches[~c[1]].push(w); break;
-            case CL_UNIT: *j++ = w; uncheckedEnqueue(first, cr); break;
-            case CL_CONFLICT:
-                *j++ = w;
-                confl = cr;
-                qhead = trail.size();
-                // Copy the remaining watches:
-                i++;
-                while (i < end) *j++ = *i++;
-                flag = true;
-                // What happens if I keep moving forward?
-                break;
-            default: break;
-            }
-            if (flag) break;
-#else
-            if (value(blocker) == l_True){
-                *j++ = *i; continue; }
-
-            // Make sure the false literal is data[1]:
-            CRef     cr        = i->cref;
-            Clause&  c         = ca[cr];
-            Lit*     rawC      = &c[0];
-            assert(LT == toInt(l_True));
-            assert(LF == toInt(l_False));
-            for (int n = 0; n < c.size(); n++) {
-                assert(rawC[n] == c[n]);
-            }
-            Lit      false_lit = ~p;
-            if (c[0] == false_lit) {
-                c[0] = c[1], c[1] = false_lit;
-            }
-            assert(c[1] == false_lit);
-
-            // If 0th watch is true, then clause is already satisfied.
-            Lit     first = c[0];
-            Watcher w     = Watcher(cr, first);
-            assert(value(first) == VALUE(first.x, assigns.begin()));
-            if (value(first) == l_True){
-                *j++ = w; continue; }
-
-            // Look for new watch:
-            bool flag = false;
-            for (int k = 2; k < c.size(); k++) {
-                if (value(c[k]) != l_False){
-                    c[1] = c[k]; c[k] = false_lit;
-                    watches[~c[1]].push(w);
-                    flag = true;
-                    break;
-                }
-            }
-            if (flag) continue;
-
-            // Did not find watch -- clause is unit under assignment:
-            *j++ = w;
-            if (value(first) == l_False){
-                confl = cr;
-                qhead = trail.size();
-                // Copy the remaining watches:
-                i++;
-                while (i < end)
-                    *j++ = *i++;
-                break;
-            }else
-                uncheckedEnqueue(first, cr);
-#endif
-        }
-        ws.shrink(i - j);
-    }
-    propagations += num_props;
-    simpDB_props -= num_props;
-
-    return confl;
-}
-
 
 /*_________________________________________________________________________________________________
 |

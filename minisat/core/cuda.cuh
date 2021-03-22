@@ -3,8 +3,6 @@
 
 #include "minisat/core/SolverTypes.h"
 
-#define CUDATEST
-
 #define CL_NOCHANGE 0
 #define CL_NEWBLOCK 1
 #define CL_NEWWATCH 2
@@ -19,6 +17,7 @@
 #define LF ((uint8_t)1)
 #define LU ((uint8_t)2)
 
-int check_watcher(int blocker, int p, int* c, unsigned c_size, uint8_t* assigns);
+int checkWatcher(int blocker, int p, int* c, unsigned c_size, uint8_t* assigns);
+__global__ void propagateKernel(int clauseCount, int* clauses, int* clausesEnd, uint8_t* assigns, int* actions);
 
 #endif

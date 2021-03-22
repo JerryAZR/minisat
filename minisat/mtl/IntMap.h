@@ -43,6 +43,7 @@ namespace Minisat {
         const V* end    () const { return &map[map.size()]; }
         V*       begin  ()       { return &map[0]; }
         V*       end    ()       { return &map[map.size()]; }
+        int      size   ()       { return map.size();}
 
         void     reserve(K key, V pad)       { map.growTo(index(key)+1, pad); }
         void     reserve(K key)              { map.growTo(index(key)+1); }
