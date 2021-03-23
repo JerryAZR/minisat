@@ -41,7 +41,7 @@ CRef Solver::propagate() {
         num_props++;
         
         // First check for conflicts
-        bool run_cuda = (ws.size() > 64) && false;
+        bool run_cuda = (ws.size() > 64);
         if (run_cuda) {
             cudaMemset(deviceConfl, 0xFF, sizeof(unsigned));
             cudaMemcpy(deviceAssigns,
