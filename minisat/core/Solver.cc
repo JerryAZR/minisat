@@ -93,7 +93,7 @@ Solver::Solver() :
   , simpDB_assigns     (-1)
   , simpDB_props       (0)
   , progress_estimate  (0)
-  , remove_satisfied   (false) // Would mess up cuda clause structure if turned on
+  , remove_satisfied   (true) // Would mess up cuda clause structure if turned on
   , next_var           (0)
 
     // Resource constraints:
@@ -533,7 +533,6 @@ void Solver::removeSatisfied(vec<CRef>& cs)
     int i, j;
     for (i = j = 0; i < cs.size(); i++){
         Clause& c = ca[cs[i]];
-        if (!c.learnt()) printf("Don't modify original clause!\n");
         if (satisfied(c))
             removeClause(cs[i]);
         else{
@@ -581,7 +580,7 @@ bool Solver::simplify()
 
     // Remove satisfied clauses:
     removeSatisfied(learnts);
-    if (false){       // Can be turned off.
+    if (remove_satisfied){       // Can be turned off.
         removeSatisfied(clauses);
 
         // TODO: what todo in if 'remove_satisfied' is false?
@@ -612,6 +611,12 @@ bool Solver::simplify()
 
     simpDB_assigns = nAssigns();
     simpDB_props   = clauses_literals + learnts_literals;   // (shouldn't depend on stats really, but it will do for now)
+
+    if (remove_satisfied) {
+        hostVecInit();
+        cudaClauseFree();
+        cudaClauseInit();
+    }
 
     return true;
 }

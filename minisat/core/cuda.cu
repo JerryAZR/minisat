@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <vector>
 
-// #define CUDATEST
+#define CUDATEST
 
 void checkCudaError(const char msg[]) {
     cudaError_t err = cudaGetLastError();
@@ -41,7 +41,7 @@ CRef Solver::propagate() {
         num_props++;
         
         // First check for conflicts
-        bool run_cuda = (ws.size() > 64);
+        bool run_cuda = (ws.size() > 64) && false;
         if (run_cuda) {
             cudaMemset(deviceConfl, 0xFF, sizeof(unsigned));
             cudaMemcpy(deviceAssigns,
@@ -62,24 +62,45 @@ CRef Solver::propagate() {
             cudaMemcpy(&confl, deviceConfl, sizeof(unsigned), cudaMemcpyDeviceToHost);
             checkCudaError("Failed to copy data back.\n");
 
-            bool watched_confl = false;
             if (confl != CREF_UNDEF) {
-                for (i = 0; i < ws.size(); i++) {
-                    CRef cr = ws[i].cref;
-                    if (cr == confl) {
-                        watched_confl = true;
-                        break;
+                Clause& c = ca[confl];
+                for (unsigned n = 0; n < c.size(); n++) {
+                    if (value(c[n]) != l_Undef) {
+                        printf("False conflict\n");
+                        exit(1);
                     }
                 }
             }
-            if (!watched_confl) confl = CREF_UNDEF;
+            // bool watched_confl = false;
+            // if (confl != CREF_UNDEF) {
+            //     for (i = 0; i < ws.size(); i++) {
+            //         CRef cr = ws[i].cref;
+            //         if (cr == confl) {
+            //             watched_confl = true;
+            //             break;
+            //         }
+            //     }
+            // }
+            // if (!watched_confl) confl = CREF_UNDEF;
         } else {
-            for (i = 0; i < ws.size(); i++) {
-                CRef     cr        = ws[i].cref;
-                Clause& c = ca[cr];
-    
-                unsigned startIdx = 0;
-                unsigned endIdx = c.size();
+            for (i = 0; i < clauses.size(); i++) {
+                CRef     cr        = clauses[i];
+                // CRef     cr        = ws[i].cref;
+                unsigned vecStart = (i == 0) ? 0 : hostClauseEnd[i-1];
+                unsigned vecEnd = hostClauseEnd[i];
+
+                // Clause& c = ca[cr];
+                // unsigned startIdx = 0;
+                // unsigned endIdx = c.size();
+
+                std::vector<Lit>& c = hostClauseVec;
+                unsigned startIdx = vecStart;
+                unsigned endIdx = vecEnd;
+
+                if (vecEnd - vecStart != ca[cr].size()) {
+                    printf("Clause size mismatch.\n");
+                    exit(1);
+                }
                 bool unsat = true;
                 for (j = startIdx; j < endIdx; j++) {
                     Lit variable = c[j];
@@ -90,13 +111,34 @@ CRef Solver::propagate() {
                 }
                 if (unsat) {
                     confl = cr;
+                    if (confl != CREF_UNDEF) {
+                        Clause& c = ca[confl];
+                        for (unsigned n = 0; n < c.size(); n++) {
+                            if (value(c[n]) != l_Undef) {
+                                printf("False conflict\n");
+                                printf("Size1: %d, size2: %d\n", vecEnd - vecStart, ca[confl].size());
+                                for (unsigned x = vecStart; x < vecEnd; x++) {
+                                    printf("%d ", hostClauseVec[x]);
+                                }
+                                printf("\n");
+                                for (unsigned x = 0; x < c.size(); x++) {
+                                    printf("%d ", c[x]);
+                                }
+                                printf("\n");
+                                exit(1);
+                            }
+                        }
+                    }
                     break;
                 }
             }
         }
+        
 
         if (confl == CREF_UNDEF) {
             confl = CRef_Undef;
+            std::vector<Lit> tmpLits;
+            std::vector<CRef> tmpCRefs;
             for (i = j = 0, end = ws.size(); i < end; i++){
                 // Try to avoid inspecting the clause:
                 Lit blocker = ws[i].blocker;
@@ -142,7 +184,13 @@ CRef Solver::propagate() {
                         ws[j++] = ws[i++];
                     break;
                 }else {
-                    uncheckedEnqueue(first, cr);
+                    tmpCRefs.push_back(cr);
+                    tmpLits.push_back(first);
+                }
+            }
+            for (unsigned n = 0; n < tmpLits.size(); n++) {
+                if (value(tmpLits[n]) == l_Undef) {
+                    uncheckedEnqueue(tmpLits[n], tmpCRefs[n]);
                 }
             }
         } else {
