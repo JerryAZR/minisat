@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 using std::vector;
-#define CUDATEST
+// #define CUDATEST
 
 // interface (CPU) functions
 using namespace Minisat;
@@ -153,38 +153,17 @@ CRef Solver::propagate()
     while (qhead < trail.size()){
         Lit            p   = trail[qhead++];     // 'p' is enqueued fact to propagate.
         vec<Watcher>&  ws  = watches.lookup(p);
-        Watcher        *i, *j, *end;
+        int        i, j, end;
         num_props++;
 
-        // Testing preprocessing
-        int watcherCount = 0;
-        for (int idx = 0; idx < ws.size(); idx++) {
-            Lit blocker = ws[idx].blocker;
-            if (value(blocker) == l_True) {
-                Watcher tmp = ws[watcherCount];
-                ws[watcherCount++] = ws[idx];
-                ws[idx] = tmp;
-                continue;
-            }
-            Clause& cl = ca[ws[idx].cref];
-            Lit false_lit = ~p;
-            if (cl[0] == false_lit) {
-                cl[0] = cl[1];
-                cl[1] = false_lit;
-            }
-        }
-
-        vector<Lit> tmpAssignments;
-        vector<CRef> tmpReason;
-        assert(tmpAssignments.size() == 0);
-        for (i = j = (Watcher*)ws, end = i + ws.size(); i != end; i++){
+        for (i = j = 0, end = ws.size(); i < end; i++){
             // Try to avoid inspecting the clause:
-            Lit blocker = i->blocker;
+            Lit blocker = ws[i].blocker;
             if (value(blocker) == l_True){
-                *j++ = *i; continue; }
+                ws[j++] = ws[i]; continue; }
 
             // Make sure the false literal is data[1]:
-            CRef     cr        = i->cref;
+            CRef     cr        = ws[i].cref;
             Clause&  c         = ca[cr];
             Lit      false_lit = ~p;
             if (c[0] == false_lit) {
@@ -197,7 +176,7 @@ CRef Solver::propagate()
             Watcher w     = Watcher(cr, first);
             assert(value(first) == VALUE(first.x, assigns.begin()));
             if (value(first) == l_True){
-                *j++ = w; continue; }
+                ws[j++] = w; continue; }
 
             // Look for new watch:
             bool flag = false;
@@ -212,25 +191,17 @@ CRef Solver::propagate()
             if (flag) continue;
 
             // Did not find watch -- clause is unit under assignment:
-            *j++ = w;
+            ws[j++] = w;
             if (value(first) == l_False){
                 confl = cr;
                 qhead = trail.size();
                 // Copy the remaining watches:
                 i++;
                 while (i < end)
-                    *j++ = *i++;
+                    ws[j++] = ws[i++];
                 break;
-            }else {
-                tmpAssignments.push_back(first);
-                tmpReason.push_back(cr);
-                // uncheckedEnqueue(first, cr);
-            }
-        }
-        for (int idx = 0; idx < tmpAssignments.size(); idx++) {
-            if (value(tmpAssignments[idx]) == l_Undef) {
-                uncheckedEnqueue(tmpAssignments[idx], tmpReason[idx]);
-            }
+            }else
+                uncheckedEnqueue(first, cr);
         }
         ws.shrink(i - j);
     }

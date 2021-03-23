@@ -28,6 +28,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "minisat/utils/Options.h"
 #include "minisat/core/SolverTypes.h"
 
+#include <vector>
 
 namespace Minisat {
 
@@ -116,6 +117,18 @@ public:
     virtual void garbageCollect();
     void    checkGarbage(double gf);
     void    checkGarbage();
+
+    // CUDA host-side vectors and interfaces
+    std::vector<Lit> hostClauseVec;
+    std::vector<unsigned> hostClauseEnd;
+    std::vector<CRef> hostCRefs;
+    size_t hostLitCount;
+    int* deviceClauseVec;
+    unsigned* deviceClauseEnd;
+    unsigned* deviceCRefs;
+
+    int cudaClauseInit();
+    int cudaClauseFree();
 
     // Extra results: (read-only member variable)
     //

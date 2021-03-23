@@ -175,6 +175,14 @@ bool Solver::addClause_(vec<Lit>& ps)
         CRef cr = ca.alloc(ps, false);
         clauses.push(cr);
         attachClause(cr);
+
+        // Set up the vector to be used for CUDA
+        for (int i = 0; i < ps.size(); i++) {
+            hostClauseVec.push_back(ps[i]);
+        }
+        hostClauseEnd.push_back(hostClauseVec.size());
+        hostCRefs.push_back(cr);
+        hostLitCount = hostClauseVec.size();
     }
 
     return true;
