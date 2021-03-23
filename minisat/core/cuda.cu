@@ -40,31 +40,8 @@ CRef Solver::propagate() {
         num_props++;
         
         // First check for conflicts
-        // for (i = 0; i < ws.size(); i++) {
-        //     // CRef     cr        = hostCRefs[i];
-        //     CRef     cr        = ws[i].cref;
-        //     Clause& c = ca[cr];
-
-        //     unsigned startIdx = 0;
-        //     unsigned endIdx = c.size();
-        //     bool unsat = true;
-        //     for (j = startIdx; j < endIdx; j++) {
-        //         Lit variable = c[j];
-        //         // if (toInt(var(variable)) > assigns.size()) {
-        //         //     printf("Cref: %d, size: %d.\n", cr, endIdx-startIdx);
-        //         //     printf("Out of range. %d, %d\n", variable, assigns.size());
-        //         // }
-        //         if (value(variable) != l_False) {
-        //             unsat = false;
-        //             break;
-        //         }
-        //     }
-        //     if (unsat) {
-        //         confl = cr;
-        //         break;
-        //     }
-        // }
-        bool run_cuda = (ws.size() > 32);
+        
+        bool run_cuda = (ws.size() > 64);
         if (run_cuda) {
             cudaMemset(deviceConfl, 0xFF, sizeof(unsigned));
             cudaMemcpy(deviceAssigns,
@@ -85,17 +62,37 @@ CRef Solver::propagate() {
             cudaMemcpy(&confl, deviceConfl, sizeof(unsigned), cudaMemcpyDeviceToHost);
             checkCudaError("Failed to copy data back.\n");
 
-            // bool watched_confl = false;
-            // if (confl != CREF_UNDEF) {
-            //     for (i = 0; i < ws.size(); i++) {
-            //         CRef cr = ws[i].cref;
-            //         if (cr == confl) {
-            //             watched_confl = true;
-            //             break;
-            //         }
-            //     }
-            // }
-            // if (!watched_confl) confl = CREF_UNDEF;
+            bool watched_confl = false;
+            if (confl != CREF_UNDEF) {
+                for (i = 0; i < ws.size(); i++) {
+                    CRef cr = ws[i].cref;
+                    if (cr == confl) {
+                        watched_confl = true;
+                        break;
+                    }
+                }
+            }
+            if (!watched_confl) confl = CREF_UNDEF;
+        } else {
+            for (i = 0; i < ws.size(); i++) {
+                CRef     cr        = ws[i].cref;
+                Clause& c = ca[cr];
+    
+                unsigned startIdx = 0;
+                unsigned endIdx = c.size();
+                bool unsat = true;
+                for (j = startIdx; j < endIdx; j++) {
+                    Lit variable = c[j];
+                    if (value(variable) != l_False) {
+                        unsat = false;
+                        break;
+                    }
+                }
+                if (unsat) {
+                    confl = cr;
+                    break;
+                }
+            }
         }
 
         if (confl == CREF_UNDEF) {

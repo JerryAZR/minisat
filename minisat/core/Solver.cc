@@ -806,6 +806,7 @@ lbool Solver::solve_()
         curr_restarts++;
     }
     cudaClauseFree();
+    
 
     if (verbosity >= 1)
         printf("===============================================================================\n");
