@@ -61,38 +61,12 @@ CRef Solver::propagate() {
             
             cudaMemcpy(&confl, deviceConfl, sizeof(unsigned), cudaMemcpyDeviceToHost);
             checkCudaError("Failed to copy data back.\n");
-
-            if (confl != CREF_UNDEF) {
-                Clause& c = ca[confl];
-                for (unsigned n = 0; n < c.size(); n++) {
-                    if (value(c[n]) != l_False) {
-                        printf("False conflict\n");
-                        exit(1);
-                    }
-                }
-            }
-            // bool watched_confl = false;
-            // if (confl != CREF_UNDEF) {
-            //     for (i = 0; i < ws.size(); i++) {
-            //         CRef cr = ws[i].cref;
-            //         if (cr == confl) {
-            //             watched_confl = true;
-            //             break;
-            //         }
-            //     }
-            // }
-            // if (!watched_confl) confl = CREF_UNDEF;
         } else {
             for (i = 0; i < clauses.size(); i++) {
                 CRef     cr        = clauses[i];
                 // CRef     cr        = ws[i].cref;
                 unsigned vecStart = (i == 0) ? 0 : hostClauseEnd[i-1];
                 unsigned vecEnd = hostClauseEnd[i];
-
-                // Clause& c = ca[cr];
-                // unsigned startIdx = 0;
-                // unsigned endIdx = c.size();
-
                 std::vector<Lit>& c = hostClauseVec;
                 unsigned startIdx = vecStart;
                 unsigned endIdx = vecEnd;
@@ -111,24 +85,6 @@ CRef Solver::propagate() {
                 }
                 if (unsat) {
                     confl = cr;
-                    if (confl != CREF_UNDEF) {
-                        Clause& c = ca[confl];
-                        for (unsigned n = 0; n < c.size(); n++) {
-                            if (value(c[n]) != l_False) {
-                                printf("False conflict\n");
-                                printf("Size1: %d, size2: %d\n", vecEnd - vecStart, ca[confl].size());
-                                for (unsigned x = vecStart; x < vecEnd; x++) {
-                                    printf("%d ", hostClauseVec[x]);
-                                }
-                                printf("\n");
-                                for (unsigned x = 0; x < c.size(); x++) {
-                                    printf("%d ", c[x]);
-                                }
-                                printf("\n");
-                                exit(1);
-                            }
-                        }
-                    }
                     break;
                 }
             }
