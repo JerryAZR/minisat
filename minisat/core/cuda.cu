@@ -2,8 +2,9 @@
 #include "minisat/core/Solver.h"
 #include <stdlib.h>
 #include <algorithm>
+#include <vector>
 
-#define CUDATEST
+// #define CUDATEST
 
 void checkCudaError(const char msg[]) {
     cudaError_t err = cudaGetLastError();
@@ -40,7 +41,6 @@ CRef Solver::propagate() {
         num_props++;
         
         // First check for conflicts
-        
         bool run_cuda = (ws.size() > 64);
         if (run_cuda) {
             cudaMemset(deviceConfl, 0xFF, sizeof(unsigned));
@@ -141,12 +141,14 @@ CRef Solver::propagate() {
                     while (i < end)
                         ws[j++] = ws[i++];
                     break;
-                }else
+                }else {
                     uncheckedEnqueue(first, cr);
+                }
             }
         } else {
             qhead = trail.size();
             i = j;
+            break;
         }
         ws.shrink(i - j);
     }
@@ -166,6 +168,29 @@ CRef Solver::propagate() {
         int        i, j, end;
         num_props++;
 
+        for (i = 0; i < ws.size(); i++) {
+            CRef     cr        = ws[i].cref;
+            Clause& c = ca[cr];
+
+            unsigned startIdx = 0;
+            unsigned endIdx = c.size();
+            bool unsat = true;
+            for (j = startIdx; j < endIdx; j++) {
+                Lit variable = c[j];
+                if (value(variable) != l_False) {
+                    unsat = false;
+                    break;
+                }
+            }
+            if (unsat) {
+                confl = cr;
+                break;
+            }
+        }
+        if (confl != CRef_Undef) {
+            i = j;
+            break;
+        }
         for (i = j = 0, end = ws.size(); i < end; i++){
             // Try to avoid inspecting the clause:
             Lit blocker = ws[i].blocker;
