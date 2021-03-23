@@ -65,7 +65,7 @@ CRef Solver::propagate() {
             if (confl != CREF_UNDEF) {
                 Clause& c = ca[confl];
                 for (unsigned n = 0; n < c.size(); n++) {
-                    if (value(c[n]) != l_Undef) {
+                    if (value(c[n]) != l_False) {
                         printf("False conflict\n");
                         exit(1);
                     }
@@ -114,7 +114,7 @@ CRef Solver::propagate() {
                     if (confl != CREF_UNDEF) {
                         Clause& c = ca[confl];
                         for (unsigned n = 0; n < c.size(); n++) {
-                            if (value(c[n]) != l_Undef) {
+                            if (value(c[n]) != l_False) {
                                 printf("False conflict\n");
                                 printf("Size1: %d, size2: %d\n", vecEnd - vecStart, ca[confl].size());
                                 for (unsigned x = vecStart; x < vecEnd; x++) {
