@@ -39,8 +39,8 @@ template<class T, class _Size = int>
 class vec {
 public:
     typedef _Size Size;
-private:
     T*   data;
+private:
     Size sz;
     Size cap;
 

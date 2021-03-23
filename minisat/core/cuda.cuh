@@ -17,7 +17,8 @@
 #define LF ((uint8_t)1)
 #define LU ((uint8_t)2)
 
-int checkWatcher(int blocker, int p, int* c, unsigned c_size, uint8_t* assigns);
-__global__ void propagateKernel(int clauseCount, int* clauses, int* clausesEnd, uint8_t* assigns, int* actions);
+#define CREF_UNDEF 0xFFFFFFFF
+
+__global__ void checkConflict(int* Clauses, unsigned* ends, unsigned* crefs, unsigned clauseCount, uint8_t* assigns, unsigned* conflict);
 
 #endif

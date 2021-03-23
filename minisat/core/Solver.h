@@ -121,14 +121,16 @@ public:
     // CUDA host-side vectors and interfaces
     std::vector<Lit> hostClauseVec;
     std::vector<unsigned> hostClauseEnd;
-    std::vector<CRef> hostCRefs;
-    size_t hostLitCount;
     int* deviceClauseVec;
     unsigned* deviceClauseEnd;
     unsigned* deviceCRefs;
+    unsigned* deviceConfl;
+    uint8_t* deviceAssigns;
 
-    int cudaClauseInit();
-    int cudaClauseFree();
+    void hostVecInit();
+    void cudaClauseInit();
+    void cudaClauseUpdate();
+    void cudaClauseFree();
 
     // Extra results: (read-only member variable)
     //

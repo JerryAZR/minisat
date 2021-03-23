@@ -93,7 +93,7 @@ Solver::Solver() :
   , simpDB_assigns     (-1)
   , simpDB_props       (0)
   , progress_estimate  (0)
-  , remove_satisfied   (true)
+  , remove_satisfied   (false) // Would mess up cuda clause structure if turned on
   , next_var           (0)
 
     // Resource constraints:
@@ -175,14 +175,6 @@ bool Solver::addClause_(vec<Lit>& ps)
         CRef cr = ca.alloc(ps, false);
         clauses.push(cr);
         attachClause(cr);
-
-        // Set up the vector to be used for CUDA
-        for (int i = 0; i < ps.size(); i++) {
-            hostClauseVec.push_back(ps[i]);
-        }
-        hostClauseEnd.push_back(hostClauseVec.size());
-        hostCRefs.push_back(cr);
-        hostLitCount = hostClauseVec.size();
     }
 
     return true;
@@ -541,6 +533,7 @@ void Solver::removeSatisfied(vec<CRef>& cs)
     int i, j;
     for (i = j = 0; i < cs.size(); i++){
         Clause& c = ca[cs[i]];
+        if (!c.learnt()) printf("Don't modify original clause!\n");
         if (satisfied(c))
             removeClause(cs[i]);
         else{
@@ -588,7 +581,7 @@ bool Solver::simplify()
 
     // Remove satisfied clauses:
     removeSatisfied(learnts);
-    if (remove_satisfied){       // Can be turned off.
+    if (false){       // Can be turned off.
         removeSatisfied(clauses);
 
         // TODO: what todo in if 'remove_satisfied' is false?
@@ -645,6 +638,9 @@ lbool Solver::search(int nof_conflicts)
     vec<Lit>    learnt_clause;
     starts++;
 
+    // printf("nclauses: %d, nlearnt: %d\n", nClauses(), nLearnts());
+    // printf("Assigns: %d\n", assigns.size());
+
     for (;;){
         CRef confl = propagate();
         if (confl != CRef_Undef){
@@ -693,9 +689,11 @@ lbool Solver::search(int nof_conflicts)
             if (decisionLevel() == 0 && !simplify())
                 return l_False;
 
-            if (learnts.size()-nAssigns() >= max_learnts)
+            if (learnts.size()-nAssigns() >= max_learnts) {
                 // Reduce the set of learnt clauses:
                 reduceDB();
+                cudaClauseUpdate();
+            }
 
             Lit next = lit_Undef;
             while (decisionLevel() < assumptions.size()){
@@ -776,7 +774,6 @@ static double luby(double y, int x){
 // NOTE: assumptions passed in member-variable 'assumptions'.
 lbool Solver::solve_()
 {
-    // printf("Starting MiniSAT solver.\n");
     model.clear();
     conflict.clear();
     if (!ok) return l_False;
@@ -800,12 +797,15 @@ lbool Solver::solve_()
 
     // Search:
     int curr_restarts = 0;
+    hostVecInit();    
+    cudaClauseInit();
     while (status == l_Undef){
         double rest_base = luby_restart ? luby(restart_inc, curr_restarts) : pow(restart_inc, curr_restarts);
         status = search(rest_base * restart_first);
         if (!withinBudget()) break;
         curr_restarts++;
     }
+    cudaClauseFree();
 
     if (verbosity >= 1)
         printf("===============================================================================\n");
@@ -819,10 +819,6 @@ lbool Solver::solve_()
         ok = false;
 
     cancelUntil(0);
-    // printf("Leaving MiniSAT solver.\n");
-    // if (status == l_False) printf("UNSAT.\n");
-    // else if (status == l_True) printf("SAT.\n");
-    // else printf("UNSOLVED.\n");
     return status;
 }
 
@@ -1006,4 +1002,21 @@ void Solver::garbageCollect()
         printf("|  Garbage collection:   %12d bytes => %12d bytes             |\n", 
                ca.size()*ClauseAllocator::Unit_Size, to.size()*ClauseAllocator::Unit_Size);
     to.moveTo(ca);
+}
+
+void Solver::hostVecInit() {
+    hostClauseVec.clear();
+    hostClauseEnd.clear();
+    for (int i = 0; i < clauses.size(); i++) {
+        CRef cr = clauses[i];
+        Clause& c = ca[cr];
+        if (c.learnt()) continue;
+        for (int j = 0; j < c.size(); j++) {
+            hostClauseVec.push_back(c[j]);
+        }
+        if (c.size() == 50) {
+            printf("Idx %d has size 50\n", i);
+        }
+        hostClauseEnd.push_back(hostClauseVec.size());
+    }
 }
