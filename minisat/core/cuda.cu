@@ -61,20 +61,13 @@ CRef Solver::propagate() {
             
             cudaMemcpy(&confl, deviceConfl, sizeof(unsigned), cudaMemcpyDeviceToHost);
             checkCudaError("Failed to copy data back.\n");
+            verifyUnsat(confl);
         } else {
-            for (i = 0; i < clauses.size(); i++) {
-                CRef     cr        = clauses[i];
-                // CRef     cr        = ws[i].cref;
-                unsigned vecStart = (i == 0) ? 0 : hostClauseEnd[i-1];
-                unsigned vecEnd = hostClauseEnd[i];
-                std::vector<Lit>& c = hostClauseVec;
-                unsigned startIdx = vecStart;
-                unsigned endIdx = vecEnd;
-
-                if (vecEnd - vecStart != ca[cr].size()) {
-                    printf("Clause size mismatch.\n");
-                    exit(1);
-                }
+            for (i = 0; i < ws.size(); i++) {
+                CRef cr = ws[i].cref;
+                Clause& c = ca[cr];
+                unsigned startIdx = 0;
+                unsigned endIdx = c.size();
                 bool unsat = true;
                 for (j = startIdx; j < endIdx; j++) {
                     Lit variable = c[j];
@@ -90,7 +83,6 @@ CRef Solver::propagate() {
             }
         }
         
-
         if (confl == CREF_UNDEF) {
             confl = CRef_Undef;
             std::vector<Lit> tmpLits;
@@ -145,9 +137,7 @@ CRef Solver::propagate() {
                 }
             }
             for (unsigned n = 0; n < tmpLits.size(); n++) {
-                if (value(tmpLits[n]) == l_Undef) {
-                    uncheckedEnqueue(tmpLits[n], tmpCRefs[n]);
-                }
+                enqueue(tmpLits[n], tmpCRefs[n]);
             }
         } else {
             qhead = trail.size();
@@ -250,6 +240,17 @@ CRef Solver::propagate() {
     return confl;
 }
 #endif
+
+void Solver::verifyUnsat(CRef cr) {
+    if (cr == CREF_UNDEF) return;
+    Clause& c = ca[cr];
+    for (int i = 0; i < c.size(); i++) {
+        if (value(c[i]) != l_False) {
+            printf("False unsat.\n");
+            exit(1);
+        }
+    }
+}
 
 void Solver::cudaClauseInit() {
 #ifdef CUDATEST

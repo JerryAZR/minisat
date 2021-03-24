@@ -131,6 +131,7 @@ public:
     void cudaClauseInit();
     void cudaClauseUpdate();
     void cudaClauseFree();
+    void verifyUnsat(CRef cr);
 
     // Extra results: (read-only member variable)
     //
