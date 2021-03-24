@@ -496,17 +496,6 @@ void Solver::analyzeFinal(Lit p, LSet& out_conflict)
 }
 
 
-void Solver::uncheckedEnqueue(Lit p, CRef from)
-{
-    // Assert that variable(literal) p is unassigned
-    assert(value(p) == l_Undef);
-    // For reference: l_True = 0, l_False = 1, l_Undef = 2
-    // Assign the value that makes the current literal True
-    assigns[var(p)] = lbool(!sign(p));
-    vardata[var(p)] = mkVarData(from, decisionLevel());
-    trail.push_(p);
-}
-
 /*_________________________________________________________________________________________________
 |
 |  reduceDB : ()  ->  [void]
