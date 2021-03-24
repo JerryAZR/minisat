@@ -132,6 +132,7 @@ public:
     void cudaClauseInit();
     void cudaClauseUpdate();
     void cudaClauseFree();
+    void cudaAssignmentUpdate();
     void verifyUnsat(CRef cr);
     CRef checkConflictCaller();
     bool cpuCheckConflict();

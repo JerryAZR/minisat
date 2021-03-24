@@ -255,7 +255,7 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
     assigns[var(p)] = lbool(!sign(p));
     vardata[var(p)] = mkVarData(from, decisionLevel());
     trail.push_(p);
-    if (deviceAssigns) {
+    if (deviceAssigns != nullptr) {
         cudaMemset(deviceAssigns+var(p), !sign(p), sizeof(uint8_t));
         checkCudaError("Failed to set variable value.\n");
     }
@@ -300,13 +300,16 @@ void Solver::cudaClauseUpdate() {
 #endif
 }
 
+void Solver::cudaAssignmentUpdate() {
+#ifdef CUDATEST
+    cudaMemcpy(deviceAssigns, assigns.begin(), sizeof(uint8_t) * assigns.size(), cudaMemcpyHostToDevice);
+#endif
+}
+
 CRef Solver::checkConflictCaller() {
     CRef confl;
     cudaMemset(deviceConfl, 0xFF, sizeof(unsigned));
-    cudaMemcpy(deviceAssigns,
-        assigns.begin(),
-        sizeof(uint8_t) * assigns.size(),
-        cudaMemcpyHostToDevice);
+    cudaAssignmentUpdate();
     checkCudaError("Failed to copy assignment data.\n");
 
     const size_t blockSize = 32;
