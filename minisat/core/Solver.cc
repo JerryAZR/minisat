@@ -313,13 +313,10 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
 
         // Modified: Don't rely on variable order here, 
         // because I'm not keeping assignments in order.
-        // if (p != lit_Undef)
-        //     assert(reason(var(c[0])) == confl);
         for (int j = 0; j < c.size(); j++){
             Lit q = c[j];
             // skip implied assignments
             if (reason(var(q)) == confl) continue;
-            // assert(reason(var(q)) != confl);
             // Iterate over all literals in the clause
             if (!seen[var(q)] && level(var(q)) > 0){
                 varBumpActivity(var(q));

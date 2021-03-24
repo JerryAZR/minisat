@@ -42,36 +42,14 @@ CRef Solver::propagate() {
         num_props++;
         
         // First check for conflicts
-        bool run_cuda = (hostClauseEnd.size() > 0) && (ws.size() > 16);
+        bool run_cuda = (hostClauseEnd.size() > 0) && (ws.size() > 32);
         if (run_cuda) {
             confl = checkConflictCaller();
             // testCheckConflict(
             //     (int*) hostClauseVec.data(), hostClauseEnd.data(),
             //     (unsigned*) clauses.data, (unsigned) clauses.size(),
             //     (uint8_t*) assigns.begin(), (unsigned*) (&confl));
-            // verifyUnsat(confl);
-        } else {
-            for (i = ws.size()-1; i >= 0; i--) {
-                CRef cr = ws[i].cref;
-                Clause& c = ca[cr];
-                unsigned startIdx = 0;
-                unsigned endIdx = c.size();
-                bool unsat = true;
-                for (j = startIdx; j < endIdx; j++) {
-                    Lit variable = c[j];
-                    if (value(variable) != l_False) {
-                        unsat = false;
-                        break;
-                    }
-                }
-                if (unsat) {
-                    confl = cr;
-                    break;
-                }
-            }
-            // verifyUnsat(confl);
         }
-        // verifyUnsat(confl);
         
         if (confl == CREF_UNDEF) {
             confl = CRef_Undef;
@@ -336,11 +314,11 @@ __global__ void checkConflict(int* clauses, unsigned* ends, unsigned* crefs, uns
 
     unsigned startIdx = (idx == 0) ? 0 : ends[idx-1];
     unsigned endIdx = ends[idx];
-    int valCount[4];
-    for (int i = 0; i < 4; i++) {
+    unsigned valCount[4];
+    for (unsigned i = 0; i < 4; i++) {
         valCount[i] = 0;
     }
-    for (int i = startIdx; i < endIdx; i++) {
+    for (unsigned i = startIdx; i < endIdx; i++) {
         uint8_t value = VALUE(clauses[i], assigns);
         valCount[value]++;
     }
@@ -356,11 +334,11 @@ void testCheckConflict(int* clauses, unsigned* ends, unsigned* crefs, unsigned c
     for (unsigned idx = 0; idx < clauseCount; idx++) {
         unsigned startIdx = (idx == 0) ? 0 : ends[idx-1];
         unsigned endIdx = ends[idx];
-        int valCount[4];
-        for (int i = 0; i < 4; i++) {
+        unsigned valCount[4];
+        for (unsigned i = 0; i < 4; i++) {
             valCount[i] = 0;
         }
-        for (int i = startIdx; i < endIdx; i++) {
+        for (unsigned i = startIdx; i < endIdx; i++) {
             uint8_t value = VALUE(clauses[i], assigns);
             valCount[value]++;
         }
