@@ -53,9 +53,16 @@ static IntOption     opt_min_learnts_lim   (_cat, "min-learnts", "Minimum learnt
 
 Solver::Solver() :
 
+    // CUDA memory pointers
+    deviceClauseVec (nullptr)
+  , deviceClauseEnd (nullptr)
+  , deviceCRefs     (nullptr)
+  , deviceConfl     (nullptr)
+  , deviceAssigns   (nullptr)
+
     // Parameters (user settable):
     //
-    verbosity        (0)
+  , verbosity        (0)
   , var_decay        (opt_var_decay)
   , clause_decay     (opt_clause_decay)
   , random_var_freq  (opt_random_var_freq)

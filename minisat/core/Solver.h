@@ -118,7 +118,7 @@ public:
     void    checkGarbage(double gf);
     void    checkGarbage();
 
-    // CUDA host-side vectors and interfaces
+    // CUDA memory pointers
     std::vector<Lit> hostClauseVec;
     std::vector<unsigned> hostClauseEnd;
     int* deviceClauseVec;
@@ -127,6 +127,7 @@ public:
     unsigned* deviceConfl;
     uint8_t* deviceAssigns;
 
+    // CUDA host-side interfaces
     void hostVecInit();
     void cudaClauseInit();
     void cudaClauseUpdate();
