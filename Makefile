@@ -62,7 +62,7 @@ SORELEASE?=.0#   Declare empty to leave out from library file name.
 NVCC=nvcc
 MINISAT_CXXFLAGS = -I. -D __STDC_LIMIT_MACROS -D __STDC_FORMAT_MACROS -Wall -Wno-parentheses -Wextra
 MINISAT_NVCCFLAGS = -Xcompiler "$(MINISAT_CXXFLAGS)"
-MINISAT_LDFLAGS  = -lz -L/usr/lib/cuda/lib64 -lcudart -lcuda
+MINISAT_LDFLAGS  = -lz -L/usr/lib/cuda/lib64 -lcudart
 
 ECHO=@echo
 ifeq ($(VERB),)

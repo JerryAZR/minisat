@@ -17,6 +17,7 @@ void checkCudaError(const char msg[]) {
 
 // interface (CPU) functions
 using namespace Minisat;
+void testCheckConflict(int* clauses, unsigned* ends, unsigned* crefs, unsigned clauseCount, uint8_t* assigns, unsigned* conflict);
 
 /*_________________________________________________________________________________________________
 |
@@ -41,29 +42,16 @@ CRef Solver::propagate() {
         num_props++;
         
         // First check for conflicts
-        bool run_cuda = (ws.size() > 64);
+        bool run_cuda = (hostClauseEnd.size() > 0) && (ws.size() > 16);
         if (run_cuda) {
-            cudaMemset(deviceConfl, 0xFF, sizeof(unsigned));
-            cudaMemcpy(deviceAssigns,
-                assigns.begin(),
-                sizeof(uint8_t) * assigns.size(),
-                cudaMemcpyHostToDevice);
-            checkCudaError("Failed to copy assignment data.\n");
-
-            const size_t blockSize = 32;
-            size_t gridSize = (clauses.size() - 1) / blockSize + 1;
-            checkConflict<<<gridSize, blockSize>>>(
-                deviceClauseVec, deviceClauseEnd, deviceCRefs,
-                clauses.size(), deviceAssigns, deviceConfl
-            );
-            cudaDeviceSynchronize();
-            checkCudaError("Error while launching kernel.\n");
-            
-            cudaMemcpy(&confl, deviceConfl, sizeof(unsigned), cudaMemcpyDeviceToHost);
-            checkCudaError("Failed to copy data back.\n");
-            verifyUnsat(confl);
+            confl = checkConflictCaller();
+            // testCheckConflict(
+            //     (int*) hostClauseVec.data(), hostClauseEnd.data(),
+            //     (unsigned*) clauses.data, (unsigned) clauses.size(),
+            //     (uint8_t*) assigns.begin(), (unsigned*) (&confl));
+            // verifyUnsat(confl);
         } else {
-            for (i = 0; i < ws.size(); i++) {
+            for (i = ws.size()-1; i >= 0; i--) {
                 CRef cr = ws[i].cref;
                 Clause& c = ca[cr];
                 unsigned startIdx = 0;
@@ -81,12 +69,14 @@ CRef Solver::propagate() {
                     break;
                 }
             }
+            // verifyUnsat(confl);
         }
+        // verifyUnsat(confl);
         
         if (confl == CREF_UNDEF) {
             confl = CRef_Undef;
-            std::vector<Lit> tmpLits;
-            std::vector<CRef> tmpCRefs;
+            // std::vector<Lit> tmpLits;
+            // std::vector<CRef> tmpCRefs;
             for (i = j = 0, end = ws.size(); i < end; i++){
                 // Try to avoid inspecting the clause:
                 Lit blocker = ws[i].blocker;
@@ -132,16 +122,18 @@ CRef Solver::propagate() {
                         ws[j++] = ws[i++];
                     break;
                 }else {
-                    tmpCRefs.push_back(cr);
-                    tmpLits.push_back(first);
+                    // tmpCRefs.push_back(cr);
+                    // tmpLits.push_back(first);
+                    uncheckedEnqueue(first, cr);
                 }
             }
-            for (unsigned n = 0; n < tmpLits.size(); n++) {
-                enqueue(tmpLits[n], tmpCRefs[n]);
-            }
+            // for (unsigned n = 0; n < tmpLits.size(); n++) {
+            //     if (value(tmpLits[n]) == l_Undef)
+            //         uncheckedEnqueue(tmpLits[n], tmpCRefs[n]);
+            // }
         } else {
             qhead = trail.size();
-            i = j;
+            i = j = 0;
             break;
         }
         ws.shrink(i - j);
@@ -162,29 +154,29 @@ CRef Solver::propagate() {
         int        i, j, end;
         num_props++;
 
-        for (i = 0; i < ws.size(); i++) {
-            CRef     cr        = ws[i].cref;
-            Clause& c = ca[cr];
+        // for (i = 0; i < ws.size(); i++) {
+        //     CRef     cr        = ws[i].cref;
+        //     Clause& c = ca[cr];
 
-            unsigned startIdx = 0;
-            unsigned endIdx = c.size();
-            bool unsat = true;
-            for (j = startIdx; j < endIdx; j++) {
-                Lit variable = c[j];
-                if (value(variable) != l_False) {
-                    unsat = false;
-                    break;
-                }
-            }
-            if (unsat) {
-                confl = cr;
-                break;
-            }
-        }
-        if (confl != CRef_Undef) {
-            i = j;
-            break;
-        }
+        //     unsigned startIdx = 0;
+        //     unsigned endIdx = c.size();
+        //     bool unsat = true;
+        //     for (j = startIdx; j < endIdx; j++) {
+        //         Lit variable = c[j];
+        //         if (value(variable) != l_False) {
+        //             unsat = false;
+        //             break;
+        //         }
+        //     }
+        //     if (unsat) {
+        //         confl = cr;
+        //         break;
+        //     }
+        // }
+        // if (confl != CRef_Undef) {
+        //     i = j;
+        //     break;
+        // }
         for (i = j = 0, end = ws.size(); i < end; i++){
             // Try to avoid inspecting the clause:
             Lit blocker = ws[i].blocker;
@@ -242,15 +234,39 @@ CRef Solver::propagate() {
 #endif
 
 void Solver::verifyUnsat(CRef cr) {
-    if (cr == CREF_UNDEF) return;
-    Clause& c = ca[cr];
-    for (int i = 0; i < c.size(); i++) {
-        if (value(c[i]) != l_False) {
-            printf("False unsat.\n");
+    if (cr == CREF_UNDEF) {
+        if (cpuCheckConflict()) {
+            printf("Miss unsat.\n");
             exit(1);
+        }
+    } else {
+        Clause& c = ca[cr];
+        for (int i = 0; i < c.size(); i++) {
+            if (value(c[i]) != l_False) {
+                printf("False unsat.\n");
+                exit(1);
+            }
         }
     }
 }
+
+bool Solver::cpuCheckConflict() {
+    for (int i = 0; i < clauses.size(); i++) {
+        Clause& c = ca[clauses[i]];
+        bool unsat = true;
+        for (int j = 0; j < c.size(); j++) {
+            if (value(c[j]) != l_False) {
+                unsat = false;
+                break;
+            }
+        }
+        if (unsat) {
+            return true;
+        }
+    }
+    return false;
+}
+
 
 void Solver::cudaClauseInit() {
 #ifdef CUDATEST
@@ -290,6 +306,28 @@ void Solver::cudaClauseUpdate() {
 #endif
 }
 
+CRef Solver::checkConflictCaller() {
+    CRef confl;
+    cudaMemset(deviceConfl, 0xFF, sizeof(unsigned));
+    cudaMemcpy(deviceAssigns,
+        assigns.begin(),
+        sizeof(uint8_t) * assigns.size(),
+        cudaMemcpyHostToDevice);
+    checkCudaError("Failed to copy assignment data.\n");
+
+    const size_t blockSize = 32;
+    size_t gridSize = (clauses.size() - 1) / blockSize + 1;
+    checkConflict<<<gridSize, blockSize>>>(
+        deviceClauseVec, deviceClauseEnd, deviceCRefs,
+        clauses.size(), deviceAssigns, deviceConfl
+    );
+    checkCudaError("Error while launching kernel.\n");
+    
+    cudaMemcpy(&confl, deviceConfl, sizeof(unsigned), cudaMemcpyDeviceToHost);
+    checkCudaError("Failed to copy data back.\n");
+    cudaDeviceSynchronize();
+    return confl;
+}
 // Cuda device functions
 
 __global__ void checkConflict(int* clauses, unsigned* ends, unsigned* crefs, unsigned clauseCount, uint8_t* assigns, unsigned* conflict) {
@@ -310,5 +348,27 @@ __global__ void checkConflict(int* clauses, unsigned* ends, unsigned* crefs, uns
         // Fount a conflicting clause (evaluates to 0)
         unsigned cr = crefs[idx];
         atomicCAS(conflict, CREF_UNDEF, cr);
+    }
+}
+
+void testCheckConflict(int* clauses, unsigned* ends, unsigned* crefs, unsigned clauseCount, uint8_t* assigns, unsigned* conflict) {
+    std::srand(9);
+    for (unsigned idx = 0; idx < clauseCount; idx++) {
+        unsigned startIdx = (idx == 0) ? 0 : ends[idx-1];
+        unsigned endIdx = ends[idx];
+        int valCount[4];
+        for (int i = 0; i < 4; i++) {
+            valCount[i] = 0;
+        }
+        for (int i = startIdx; i < endIdx; i++) {
+            uint8_t value = VALUE(clauses[i], assigns);
+            valCount[value]++;
+        }
+        if (valCount[LF] == endIdx - startIdx) {
+            // Fount a conflicting clause (evaluates to 0)
+            unsigned cr = crefs[idx];
+            *conflict = cr;
+            if (std::rand() & 3 == 0) return;
+        }
     }
 }

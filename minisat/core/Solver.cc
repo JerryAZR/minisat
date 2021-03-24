@@ -169,6 +169,7 @@ bool Solver::addClause_(vec<Lit>& ps)
     if (ps.size() == 0)
         return ok = false;
     else if (ps.size() == 1){
+        assert(value(ps[0]) == l_Undef);
         uncheckedEnqueue(ps[0]);
         return ok = (propagate() == CRef_Undef);
     }else{
@@ -310,8 +311,15 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
         if (c.learnt())
             claBumpActivity(c);
 
-        for (int j = (p == lit_Undef) ? 0 : 1; j < c.size(); j++){
+        // Modified: Don't rely on variable order here, 
+        // because I'm not keeping assignments in order.
+        // if (p != lit_Undef)
+        //     assert(reason(var(c[0])) == confl);
+        for (int j = 0; j < c.size(); j++){
             Lit q = c[j];
+            // skip implied assignments
+            if (reason(var(q)) == confl) continue;
+            // assert(reason(var(q)) != confl);
             // Iterate over all literals in the clause
             if (!seen[var(q)] && level(var(q)) > 0){
                 varBumpActivity(var(q));
@@ -332,6 +340,7 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
 
     }while (pathC > 0);
     out_learnt[0] = ~p;
+    assert(level(var(p)) >= decisionLevel());
 
     // Simplify conflict clause:
     //
@@ -658,12 +667,14 @@ lbool Solver::search(int nof_conflicts)
             cancelUntil(backtrack_level);
 
             if (learnt_clause.size() == 1){
+                assert(value(learnt_clause[0]) == l_Undef);
                 uncheckedEnqueue(learnt_clause[0]);
             }else{
                 CRef cr = ca.alloc(learnt_clause, true);
                 learnts.push(cr);
                 attachClause(cr);
                 claBumpActivity(ca[cr]);
+                assert(value(learnt_clause[0]) == l_Undef);
                 uncheckedEnqueue(learnt_clause[0], cr);
             }
 
@@ -728,6 +739,7 @@ lbool Solver::search(int nof_conflicts)
 
             // Increase decision level and enqueue 'next'
             newDecisionLevel();
+            assert(value(next) == l_Undef);
             uncheckedEnqueue(next);
         }
     }

@@ -132,6 +132,8 @@ public:
     void cudaClauseUpdate();
     void cudaClauseFree();
     void verifyUnsat(CRef cr);
+    CRef checkConflictCaller();
+    bool cpuCheckConflict();
 
     // Extra results: (read-only member variable)
     //
