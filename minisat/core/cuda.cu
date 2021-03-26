@@ -1,10 +1,6 @@
 #include "minisat/core/cuda.cuh"
 #include "minisat/core/Solver.h"
-#include <stdlib.h>
-#include <algorithm>
 #include <vector>
-
-#define CUDATEST
 
 void checkCudaError(const char msg[]) {
     cudaError_t err = cudaGetLastError();
@@ -30,7 +26,7 @@ void testCheckConflict(int* clauses, unsigned* ends, unsigned* crefs, unsigned c
 |    Post-conditions:
 |      * the propagation queue is empty, even if there was a conflict.
 |________________________________________________________________________________________________@*/
-#ifdef CUDATEST
+#ifdef USE_CUDA
 CRef Solver::propagate() {
     CRef    confl     = CREF_UNDEF;
     int     num_props = 0;
@@ -245,42 +241,6 @@ bool Solver::cpuCheckConflict() {
     return false;
 }
 
-
-void Solver::cudaClauseInit() {
-#ifdef CUDATEST
-    size_t litCount = hostClauseVec.size();
-    size_t clauseCount = hostClauseEnd.size();
-    deviceClauseVec.init((unsigned*)hostClauseVec.data(), hostClauseVec.size());
-    deviceClauseEnd.init((unsigned*)hostClauseEnd.data(), hostClauseEnd.size());
-    deviceCRefs.init((unsigned*)clauses.data, clauses.size());
-    checkCudaError("Failed to initialize memory for clause data.\n");
-    cudaMalloc(&deviceConfl, sizeof(unsigned));
-    cudaMalloc(&deviceAssigns, sizeof(uint8_t) * assigns.size());
-    checkCudaError("Failed to allocate memory for assgnment data.\n");
-#endif
-}
-
-void Solver::cudaClauseFree() {
-#ifdef CUDATEST
-    cudaFree(deviceConfl);
-    cudaFree(deviceAssigns);
-    checkCudaError("Failed to free device memory.\n");
-#endif
-}
-
-void Solver::cudaClauseUpdate() {
-#ifdef CUDATEST
-    size_t clauseCount = clauses.size();
-    cudaMemcpy(deviceCRefs.data, clauses.data, clauseCount * sizeof(unsigned), cudaMemcpyHostToDevice);
-    checkCudaError("Failed to update.\n");
-#endif
-}
-
-void Solver::cudaAssignmentUpdate() {
-#ifdef CUDATEST
-    cudaMemcpy(deviceAssigns, assigns.begin(), sizeof(uint8_t) * assigns.size(), cudaMemcpyHostToDevice);
-#endif
-}
 
 CRef Solver::checkConflictCaller() {
     CRef confl;

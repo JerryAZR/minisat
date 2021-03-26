@@ -19,6 +19,8 @@
 
 #define CREF_UNDEF 0xFFFFFFFF
 
+// #define USE_CUDA
+
 __global__ void checkConflict(int* Clauses, unsigned* ends, unsigned* crefs, unsigned clauseCount, uint8_t* assigns, unsigned* conflict);
 
 #endif

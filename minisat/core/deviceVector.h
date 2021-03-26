@@ -4,6 +4,8 @@
 namespace Minisat {
 
 // deviceVector class for managing CUDA device memory
+// Not using thrust/device_vector because
+//  this file needs to be included in other cpp (*.cc) files
 class deviceVector {
 public:
     unsigned* data;

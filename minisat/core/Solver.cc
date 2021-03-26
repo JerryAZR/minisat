@@ -1024,20 +1024,3 @@ void Solver::garbageCollect()
                ca.size()*ClauseAllocator::Unit_Size, to.size()*ClauseAllocator::Unit_Size);
     to.moveTo(ca);
 }
-
-void Solver::hostVecInit() {
-    hostClauseVec.clear();
-    hostClauseEnd.clear();
-    for (int i = 0; i < clauses.size(); i++) {
-        CRef cr = clauses[i];
-        Clause& c = ca[cr];
-        if (c.learnt()) continue;
-        for (int j = 0; j < c.size(); j++) {
-            hostClauseVec.push_back(c[j]);
-        }
-        if (c.size() == 50) {
-            printf("Idx %d has size 50\n", i);
-        }
-        hostClauseEnd.push_back(hostClauseVec.size());
-    }
-}

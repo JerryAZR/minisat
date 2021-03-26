@@ -16,6 +16,7 @@ deviceVector::~deviceVector() {
     }
 }
 
+// Initialize deviceVector with a given host array and size
 void deviceVector::init(unsigned* hostData, unsigned sz) {
     if (cap < sz) {
         while (cap < sz) cap = cap << 1;
@@ -25,7 +26,8 @@ void deviceVector::init(unsigned* hostData, unsigned sz) {
     size = sz;
     cudaMemcpy(data, hostData, size * sizeof(unsigned), cudaMemcpyHostToDevice);
 }
-    
+
+// Push an array of data
 void deviceVector::bulk_push(unsigned* hostData, unsigned sz) {
     unsigned newSize = sz + size;
     reserve(newSize);
@@ -39,12 +41,15 @@ void deviceVector::push(unsigned newData) {
     cudaMemcpy(data+size, &newData, sizeof(unsigned), cudaMemcpyHostToDevice);
     size++;
 }
-    
+
+// Resize the vector
 void deviceVector::resize(unsigned newSize) {
     reserve(newSize);
     size = newSize;
 }
 
+// Raise cap to at least newCap
+// May allocate more memory, but does not change the size
 void deviceVector::reserve(unsigned newCap) {
     if (cap <= newCap) {
         // Calculate new cap

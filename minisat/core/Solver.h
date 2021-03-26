@@ -121,7 +121,9 @@ public:
 
     // CUDA memory pointers
     std::vector<Lit> hostClauseVec;
+    std::vector<Lit> hostLearntVec;
     std::vector<unsigned> hostClauseEnd;
+    std::vector<unsigned> hostLearntEnd;
     deviceVector deviceClauseVec;
     deviceVector deviceClauseEnd;
     deviceVector deviceCRefs;
@@ -134,6 +136,7 @@ public:
     void cudaClauseUpdate();
     void cudaClauseFree();
     void cudaAssignmentUpdate();
+    void cudaLearntUpdate();
     void verifyUnsat(CRef cr);
     CRef checkConflictCaller();
     bool cpuCheckConflict();
