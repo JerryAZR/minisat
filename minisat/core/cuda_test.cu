@@ -2,12 +2,14 @@
 #include "minisat/core/Solver.h"
 
 void checkCudaError(const char msg[]) {
+#ifdef CHECK_CUDA_ERROR
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
         printf("CUDA error: %s\n", cudaGetErrorString(err));
         printf("Error message: %s\n", msg);
         exit(1);
     }
+#endif
 }
 
 void Minisat::Solver::verifyUnsat(CRef cr) {

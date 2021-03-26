@@ -45,24 +45,40 @@ void Solver::cudaClauseFree() {
 
 void Solver::cudaClauseUpdate() {
 #ifdef USE_CUDA
-    size_t clauseCount = clauses.size();
+    static unsigned updateCount = 0;
+    updateCount++;
+    unsigned originalClauseCount = clauses.size();
+    unsigned originalLitCount = hostClauseVec.size();
     // Update CRefs of original clauses
-    cudaMemcpy(deviceCRefs.data, clauses.data, clauseCount * sizeof(unsigned), cudaMemcpyHostToDevice);
-
+    cudaMemcpy(deviceCRefs.data, clauses.data, originalClauseCount * sizeof(unsigned), cudaMemcpyHostToDevice);
     // Update learnt clauses
+    cudaLearntUpdate();
+    checkCudaError("Failed to update.\n");
+#endif
+}
+
+void Solver::cudaLearntUpdate() {
+    unsigned originalClauseCount = clauses.size();
+    unsigned originalLitCount = hostClauseVec.size();
+    // Clear learnt clauses
     hostLearntVec.clear();
     hostLearntEnd.clear();
+    deviceClauseVec.resize(originalLitCount);
+    deviceClauseEnd.resize(originalClauseCount);
+    deviceCRefs.resize(originalClauseCount);
+    // Add learnt clauses to host vector
     for (int i = 0; i < learnts.size(); i++) {
         CRef cr = learnts[i];
         Clause& c = ca[cr];
         for (int j = 0; j < c.size(); j++) {
             hostLearntVec.push_back(c[j]);
         }
-        hostLearntEnd.push_back(hostClauseVec.size() + hostLearntVec.size());
+        hostLearntEnd.push_back(originalLitCount + hostLearntVec.size());
     }
-
-    checkCudaError("Failed to update.\n");
-#endif
+    // Copy host vector to device vector
+    deviceClauseVec.bulk_push((unsigned*)hostLearntVec.data(), hostLearntVec.size());
+    deviceClauseEnd.bulk_push((unsigned*)hostLearntEnd.data(), learnts.size());
+    deviceCRefs.bulk_push((unsigned*)learnts.data, learnts.size());
 }
 
 void Solver::cudaAssignmentUpdate() {

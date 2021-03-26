@@ -20,6 +20,7 @@
 #define CREF_UNDEF 0xFFFFFFFF
 
 #define USE_CUDA
+#define CHECK_CUDA_ERROR
 
 __global__ void checkConflict(int* Clauses, unsigned* ends, unsigned* crefs, unsigned clauseCount, uint8_t* assigns, unsigned* conflict);
 

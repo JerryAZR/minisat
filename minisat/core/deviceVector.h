@@ -13,7 +13,11 @@ public:
     unsigned size;
 
     deviceVector(unsigned size = 0, unsigned cap = 1024);
+    // I don't think I'll need the copy constructor and copy assignment operator
+    // but might as well define them by the rule of 3.
+    deviceVector(const deviceVector& other);
     ~deviceVector();
+    deviceVector& operator=(const deviceVector& other);
 
     void init(unsigned* hostData, unsigned sz);
     void bulk_push(unsigned* hostData, unsigned sz);
