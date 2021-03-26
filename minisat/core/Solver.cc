@@ -24,6 +24,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "minisat/mtl/Sort.h"
 #include "minisat/utils/System.h"
 #include "minisat/core/Solver.h"
+#include "minisat/core/deviceVector.h"
 
 using namespace Minisat;
 
@@ -54,10 +55,7 @@ static IntOption     opt_min_learnts_lim   (_cat, "min-learnts", "Minimum learnt
 Solver::Solver() :
 
     // CUDA memory pointers
-    deviceClauseVec (nullptr)
-  , deviceClauseEnd (nullptr)
-  , deviceCRefs     (nullptr)
-  , deviceConfl     (nullptr)
+    deviceConfl     (nullptr)
   , deviceAssigns   (nullptr)
 
     // Parameters (user settable):

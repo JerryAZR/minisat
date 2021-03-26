@@ -250,26 +250,18 @@ void Solver::cudaClauseInit() {
 #ifdef CUDATEST
     size_t litCount = hostClauseVec.size();
     size_t clauseCount = hostClauseEnd.size();
-    cudaMalloc(&deviceClauseVec, litCount * sizeof(int));
-    cudaMalloc(&deviceClauseEnd, clauseCount * sizeof(unsigned));
-    cudaMalloc(&deviceCRefs, clauseCount * sizeof(unsigned));
-    checkCudaError("Failed to allocate memory for clause data.\n");
+    deviceClauseVec.init((unsigned*)hostClauseVec.data(), hostClauseVec.size());
+    deviceClauseEnd.init((unsigned*)hostClauseEnd.data(), hostClauseEnd.size());
+    deviceCRefs.init((unsigned*)clauses.data, clauses.size());
+    checkCudaError("Failed to initialize memory for clause data.\n");
     cudaMalloc(&deviceConfl, sizeof(unsigned));
     cudaMalloc(&deviceAssigns, sizeof(uint8_t) * assigns.size());
     checkCudaError("Failed to allocate memory for assgnment data.\n");
-
-    cudaMemcpy(deviceClauseVec, hostClauseVec.data(), litCount * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(deviceClauseEnd, hostClauseEnd.data(), clauseCount * sizeof(unsigned), cudaMemcpyHostToDevice);
-    cudaMemcpy(deviceCRefs, clauses.data, clauseCount * sizeof(unsigned), cudaMemcpyHostToDevice);
-    checkCudaError("Failed to copy clause data to device memory.\n");
 #endif
 }
 
 void Solver::cudaClauseFree() {
 #ifdef CUDATEST
-    cudaFree(deviceClauseEnd);
-    cudaFree(deviceClauseVec);
-    cudaFree(deviceCRefs);
     cudaFree(deviceConfl);
     cudaFree(deviceAssigns);
     checkCudaError("Failed to free device memory.\n");
@@ -279,7 +271,7 @@ void Solver::cudaClauseFree() {
 void Solver::cudaClauseUpdate() {
 #ifdef CUDATEST
     size_t clauseCount = clauses.size();
-    cudaMemcpy(deviceCRefs, clauses.data, clauseCount * sizeof(unsigned), cudaMemcpyHostToDevice);
+    cudaMemcpy(deviceCRefs.data, clauses.data, clauseCount * sizeof(unsigned), cudaMemcpyHostToDevice);
     checkCudaError("Failed to update.\n");
 #endif
 }
@@ -299,8 +291,8 @@ CRef Solver::checkConflictCaller() {
     const size_t blockSize = 32;
     size_t gridSize = (clauses.size() - 1) / blockSize + 1;
     checkConflict<<<gridSize, blockSize>>>(
-        deviceClauseVec, deviceClauseEnd, deviceCRefs,
-        clauses.size(), deviceAssigns, deviceConfl
+        (int*)deviceClauseVec.data, deviceClauseEnd.data, deviceCRefs.data,
+        deviceCRefs.size, deviceAssigns, deviceConfl
     );
     checkCudaError("Error while launching kernel.\n");
     

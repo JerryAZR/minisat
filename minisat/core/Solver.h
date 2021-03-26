@@ -27,6 +27,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "minisat/mtl/IntMap.h"
 #include "minisat/utils/Options.h"
 #include "minisat/core/SolverTypes.h"
+#include "minisat/core/deviceVector.h"
 
 #include <vector>
 
@@ -121,9 +122,9 @@ public:
     // CUDA memory pointers
     std::vector<Lit> hostClauseVec;
     std::vector<unsigned> hostClauseEnd;
-    int* deviceClauseVec;
-    unsigned* deviceClauseEnd;
-    unsigned* deviceCRefs;
+    deviceVector deviceClauseVec;
+    deviceVector deviceClauseEnd;
+    deviceVector deviceCRefs;
     unsigned* deviceConfl;
     uint8_t* deviceAssigns;
 
