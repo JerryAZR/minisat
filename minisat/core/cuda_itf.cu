@@ -15,9 +15,6 @@ void Solver::hostVecInit() {
         for (int j = 0; j < c.size(); j++) {
             hostClauseVec.push_back(c[j]);
         }
-        if (c.size() == 50) {
-            printf("Idx %d has size 50\n", i);
-        }
         hostClauseEnd.push_back(hostClauseVec.size());
     }
 #endif
@@ -49,7 +46,21 @@ void Solver::cudaClauseFree() {
 void Solver::cudaClauseUpdate() {
 #ifdef USE_CUDA
     size_t clauseCount = clauses.size();
+    // Update CRefs of original clauses
     cudaMemcpy(deviceCRefs.data, clauses.data, clauseCount * sizeof(unsigned), cudaMemcpyHostToDevice);
+
+    // Update learnt clauses
+    hostLearntVec.clear();
+    hostLearntEnd.clear();
+    for (int i = 0; i < learnts.size(); i++) {
+        CRef cr = learnts[i];
+        Clause& c = ca[cr];
+        for (int j = 0; j < c.size(); j++) {
+            hostLearntVec.push_back(c[j]);
+        }
+        hostLearntEnd.push_back(hostClauseVec.size() + hostLearntVec.size());
+    }
+
     checkCudaError("Failed to update.\n");
 #endif
 }
