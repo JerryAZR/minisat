@@ -31,7 +31,13 @@ void Solver::cudaClauseInit() {
     checkCudaError("Failed to initialize memory for clause data.\n");
     cudaMalloc(&deviceConfl, sizeof(unsigned));
     cudaMalloc(&deviceAssigns, sizeof(uint8_t) * assigns.size());
+    cudaMalloc(&deviceImplCount, sizeof(unsigned));
+    cudaMalloc(&deviceImplications, sizeof(uint8_t) * assigns.size());
+    cudaMalloc(&deviceImplSource, sizeof(unsigned) * assigns.size());
+    cudaMalloc(&deviceLocks, sizeof(int) * assigns.size());
     checkCudaError("Failed to allocate memory for assgnment data.\n");
+    hostImplications = (Lit*)malloc(sizeof(uint8_t) * assigns.size());
+    hostImplSource = (CRef*)malloc(sizeof(unsigned) * assigns.size());
 #endif
 }
 
@@ -39,7 +45,13 @@ void Solver::cudaClauseFree() {
 #ifdef USE_CUDA
     cudaFree(deviceConfl);
     cudaFree(deviceAssigns);
+    cudaFree(deviceImplCount);
+    cudaFree(deviceImplications);
+    cudaFree(deviceImplSource);
+    cudaFree(deviceLocks);
     checkCudaError("Failed to free device memory.\n");
+    free(hostImplications);
+    free(hostImplSource);
 #endif
 }
 

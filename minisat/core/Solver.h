@@ -129,6 +129,12 @@ public:
     deviceVector deviceCRefs;
     unsigned* deviceConfl;
     uint8_t* deviceAssigns;
+    unsigned* deviceImplCount;
+    uint8_t* deviceImplications;
+    Lit* hostImplications;
+    unsigned* deviceImplSource;
+    CRef* hostImplSource;
+    int* deviceLocks;
 
     // CUDA host-side interfaces
     void hostVecInit();

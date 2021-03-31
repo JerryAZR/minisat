@@ -17,15 +17,17 @@
 #define LF ((uint8_t)1)
 #define LU ((uint8_t)2)
 
-#define CREF_UNDEF 0xFFFFFFFF
+#define CREF_UNDEF  0xFFFFFFFF
+#define LIT_UNDEF   0xFFFFFFFF
 
 #define USE_CUDA
 #define CHECK_CUDA_ERROR
 
-__global__ void checkConflict(int* Clauses, unsigned* ends, unsigned* crefs, unsigned clauseCount, uint8_t* assigns, unsigned* conflict);
+__global__ void checkConflict(int* clauses, unsigned* ends, unsigned* crefs,
+    unsigned clauseCount, uint8_t* assigns, int* lock, unsigned* conflict,
+    uint8_t* implications, unsigned* implSource, unsigned* implCount);
 
 // test functions
 void checkCudaError(const char msg[]);
-void testCheckConflict(int* clauses, unsigned* ends, unsigned* crefs, unsigned clauseCount, uint8_t* assigns, unsigned* conflict);
 
 #endif

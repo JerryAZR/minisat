@@ -45,25 +45,3 @@ bool Minisat::Solver::cpuCheckConflict() {
     }
     return false;
 }
-
-void testCheckConflict(int* clauses, unsigned* ends, unsigned* crefs, unsigned clauseCount, uint8_t* assigns, unsigned* conflict) {
-    std::srand(9);
-    for (unsigned idx = 0; idx < clauseCount; idx++) {
-        unsigned startIdx = (idx == 0) ? 0 : ends[idx-1];
-        unsigned endIdx = ends[idx];
-        unsigned valCount[4];
-        for (unsigned i = 0; i < 4; i++) {
-            valCount[i] = 0;
-        }
-        for (unsigned i = startIdx; i < endIdx; i++) {
-            uint8_t value = VALUE(clauses[i], assigns);
-            valCount[value]++;
-        }
-        if (valCount[LF] == endIdx - startIdx) {
-            // Fount a conflicting clause (evaluates to 0)
-            unsigned cr = crefs[idx];
-            *conflict = cr;
-            if (std::rand() & 3 == 0) return;
-        }
-    }
-}

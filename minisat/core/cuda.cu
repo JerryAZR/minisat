@@ -199,7 +199,9 @@ CRef Solver::propagate() {
 
 CRef Solver::checkConflictCaller() {
     CRef confl;
+    unsigned implCount;
     cudaMemset(deviceConfl, 0xFF, sizeof(unsigned));
+    cudaMemset(deviceImplCount, 0, sizeof(unsigned));
     cudaAssignmentUpdate();
     checkCudaError("Failed to copy assignment data.\n");
 
@@ -207,30 +209,64 @@ CRef Solver::checkConflictCaller() {
     size_t gridSize = (clauses.size() - 1) / blockSize + 1;
     checkConflict<<<gridSize, blockSize>>>(
         (int*)deviceClauseVec.data, deviceClauseEnd.data, deviceCRefs.data,
-        deviceCRefs.size, deviceAssigns, deviceConfl
+        deviceCRefs.size, deviceAssigns, deviceLocks,
+        deviceConfl, deviceImplications, deviceImplSource, deviceImplCount
     );
     checkCudaError("Error while launching kernel.\n");
     
     cudaMemcpy(&confl, deviceConfl, sizeof(unsigned), cudaMemcpyDeviceToHost);
+    cudaMemcpy(&implCount, deviceImplCount, sizeof(unsigned), cudaMemcpyDeviceToHost);
     checkCudaError("Failed to copy data back.\n");
     cudaDeviceSynchronize();
+
+    if (implCount > 0) {
+        // Update variable assignment on the host side
+        cudaMemcpy(hostImplications, deviceImplications, sizeof(uint8_t) * implCount, cudaMemcpyDeviceToHost);
+        cudaMemcpy(hostImplSource, deviceImplSource, sizeof(unsigned) * implCount, cudaMemcpyDeviceToHost);
+        cudaDeviceSynchronize();
+        for (unsigned i = 0; i < implCount; i++) {
+            if (assigns.size() <= var(hostImplications[i])) {
+                printf("Variable %d out of range %d\n", var(hostImplications[i]), assigns.size());
+            }
+            assert(value(hostImplications[i]) == l_Undef);
+            uncheckedEnqueue(hostImplications[i], hostImplSource[i]);
+        }
+    }
+
     return confl;
 }
 // Cuda device functions
 
-__global__ void checkConflict(int* clauses, unsigned* ends, unsigned* crefs, unsigned clauseCount, uint8_t* assigns, unsigned* conflict) {
+__global__ void checkConflict(int* clauses, unsigned* ends, unsigned* crefs, unsigned clauseCount,
+    uint8_t* assigns, int* lock, unsigned* conflict, uint8_t* implications, unsigned* implSource, unsigned* implCount) {
     size_t idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx >= clauseCount) return;
 
     unsigned startIdx = (idx == 0) ? 0 : ends[idx-1];
     unsigned endIdx = ends[idx];
     unsigned valCount[4];
+    int implied = LIT_UNDEF;
     for (unsigned i = 0; i < 4; i++) {
         valCount[i] = 0;
     }
     for (unsigned i = startIdx; i < endIdx; i++) {
         uint8_t value = VALUE(clauses[i], assigns);
         valCount[value]++;
+        if (value >= LU) implied = clauses[i];
+    }
+    if (valCount[LF] == endIdx - startIdx - 1 && valCount[LT] == 0) {
+        // Found a unit clause
+        if (atomicExch(lock+VAR(implied), 1) == 0) {
+            // Obtain the lock and set the value
+            assigns[VAR(implied)] = SIGN(implied) ^ 1;
+            unsigned writeIdx = atomicAdd(implCount, 1);
+            implications[writeIdx] = implied;
+            implSource[writeIdx] = crefs[idx];
+        } else if (VALUE(implied, assigns) == LF) {
+            // Failed to obtain lock.
+            // conflict
+            valCount[LF] = endIdx - startIdx;
+        }
     }
     if (valCount[LF] == endIdx - startIdx) {
         // Fount a conflicting clause (evaluates to 0)
