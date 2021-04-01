@@ -26,7 +26,7 @@
 #define MAX_CONFL   256
 
 __global__ void checkConflict(int* clauses, unsigned* ends, unsigned* crefs,
-    unsigned clauseCount, uint8_t* assigns, int* lock, unsigned* conflict,
+    unsigned clauseCount, uint8_t* assigns, int* lock, unsigned* conflicts, unsigned* conflCount,
     int* implications, unsigned* implSource, unsigned* implCount);
 
 // test functions

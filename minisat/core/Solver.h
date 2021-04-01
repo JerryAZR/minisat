@@ -127,7 +127,8 @@ public:
     deviceVector deviceClauseVec;
     deviceVector deviceClauseEnd;
     deviceVector deviceCRefs;
-    unsigned* deviceConfl;
+    unsigned* deviceConfls;
+    unsigned* deviceConflCount;
     uint8_t* deviceAssigns;
     unsigned* deviceImplCount;
     int* deviceImplications;

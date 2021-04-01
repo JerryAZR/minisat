@@ -26,12 +26,12 @@ void Solver::propagate(std::vector<CRef>& hostConflicts) {
 }
 
 void Solver::checkConflictCaller(int& num_props, std::vector<CRef>& hostConflicts) {
-    
     CRef confl = CREF_UNDEF;
     unsigned implCount;
+    unsigned conflCount;
     hostConflicts.clear();
     while (true) {
-        cudaMemset(deviceConfl, 0xFF, sizeof(unsigned));
+        cudaMemset(deviceConflCount, 0, sizeof(unsigned));
         cudaMemset(deviceImplCount, 0, sizeof(unsigned));
         cudaAssignmentUpdate();
         checkCudaError("Failed to copy assignment data.\n");
@@ -41,11 +41,11 @@ void Solver::checkConflictCaller(int& num_props, std::vector<CRef>& hostConflict
         checkConflict<<<gridSize, blockSize>>>(
             (int*)deviceClauseVec.data, deviceClauseEnd.data, deviceCRefs.data,
             deviceCRefs.size, deviceAssigns, deviceLocks,
-            deviceConfl, deviceImplications, deviceImplSource, deviceImplCount
+            deviceConfls,deviceConflCount , deviceImplications, deviceImplSource, deviceImplCount
         );
         checkCudaError("Error while launching kernel.\n");
         
-        cudaMemcpy(&confl, deviceConfl, sizeof(unsigned), cudaMemcpyDeviceToHost);
+        cudaMemcpy(&conflCount, deviceConflCount, sizeof(unsigned), cudaMemcpyDeviceToHost);
         cudaMemcpy(&implCount, deviceImplCount, sizeof(unsigned), cudaMemcpyDeviceToHost);
         checkCudaError("Failed to copy data back.\n");
         cudaDeviceSynchronize();
@@ -71,16 +71,19 @@ void Solver::checkConflictCaller(int& num_props, std::vector<CRef>& hostConflict
                 }
             }
         }
-        if (confl != CREF_UNDEF) {
-            hostConflicts.push_back(confl);
+        if (conflCount > 0) {
+            if (conflCount > MAX_CONFL) conflCount = MAX_CONFL;
+            hostConflicts.resize(conflCount);
+            cudaMemcpy(hostConflicts.data(), deviceConfls, conflCount * sizeof(unsigned), cudaMemcpyDeviceToHost);
+            cudaDeviceSynchronize();
         }
-        if (implCount == 0 || confl != CREF_UNDEF) break;
+        if (implCount == 0 || conflCount > 0) break;
     }
 }
 // Cuda device functions
 
-__global__ void checkConflict(int* clauses, unsigned* ends, unsigned* crefs, unsigned clauseCount,
-    uint8_t* assigns, int* lock, unsigned* conflict, int* implications, unsigned* implSource, unsigned* implCount) {
+__global__ void checkConflict(int* clauses, unsigned* ends, unsigned* crefs, unsigned clauseCount, uint8_t* assigns,
+    int* lock, unsigned* conflicts, unsigned* conflCount, int* implications, unsigned* implSource, unsigned* implCount) {
     size_t idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx >= clauseCount) return;
 
@@ -113,6 +116,9 @@ __global__ void checkConflict(int* clauses, unsigned* ends, unsigned* crefs, uns
     if (valCount[LF] == endIdx - startIdx) {
         // Fount a conflicting clause (evaluates to 0)
         unsigned cr = crefs[idx];
-        atomicCAS(conflict, CREF_UNDEF, cr);
+        unsigned conflIdx = atomicAdd(conflCount, 1);
+        if (conflIdx < MAX_CONFL) {
+            conflicts[conflIdx] = cr;
+        }
     }
 }

@@ -55,7 +55,7 @@ static IntOption     opt_min_learnts_lim   (_cat, "min-learnts", "Minimum learnt
 Solver::Solver() :
 
     // CUDA memory pointers
-    deviceConfl     (nullptr)
+    deviceConfls    (nullptr)
   , deviceAssigns   (nullptr)
 
     // Parameters (user settable):

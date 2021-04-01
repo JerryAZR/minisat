@@ -28,7 +28,8 @@ void Solver::cudaClauseInit() {
     deviceClauseEnd.init((unsigned*)hostClauseEnd.data(), hostClauseEnd.size());
     deviceCRefs.init((unsigned*)clauses.data, clauses.size());
     checkCudaError("Failed to initialize memory for clause data.\n");
-    cudaMalloc(&deviceConfl, sizeof(unsigned));
+    cudaMalloc(&deviceConflCount, sizeof(unsigned));
+    cudaMalloc(&deviceConfls, sizeof(unsigned) * MAX_CONFL);
     cudaMalloc(&deviceAssigns, sizeof(uint8_t) * varCount);
     cudaMalloc(&deviceImplCount, sizeof(unsigned));
     cudaMalloc(&deviceImplications, sizeof(int) * varCount);
@@ -42,7 +43,8 @@ void Solver::cudaClauseInit() {
 
 void Solver::cudaClauseFree() {
 #ifdef USE_CUDA
-    cudaFree(deviceConfl);
+    cudaFree(deviceConflCount);
+    cudaFree(deviceConfls);
     cudaFree(deviceAssigns);
     cudaFree(deviceImplCount);
     cudaFree(deviceImplications);
