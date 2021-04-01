@@ -652,13 +652,15 @@ lbool Solver::search(int nof_conflicts)
     int         backtrack_level;
     int         conflictC = 0;
     vec<Lit>    learnt_clause;
+    std::vector<CRef> hostConflicts;
     starts++;
 
     // printf("nclauses: %d, nlearnt: %d\n", nClauses(), nLearnts());
     // printf("Assigns: %d\n", assigns.size());
 
     for (;;){
-        CRef confl = propagate();
+        propagate(hostConflicts);
+        CRef confl = (hostConflicts.size() == 0) ? CRef_Undef : hostConflicts[0];
         if (confl != CRef_Undef){
             // CONFLICT
             conflicts++; conflictC++;

@@ -16,100 +16,18 @@ using namespace Minisat;
 |    Post-conditions:
 |      * the propagation queue is empty, even if there was a conflict.
 |________________________________________________________________________________________________@*/
-#ifdef USE_CUDA
-CRef Solver::propagate() {
+void Solver::propagate(std::vector<CRef>& hostConflicts) {
     CRef    confl     = CREF_UNDEF;
     int     num_props = 0;
 
-    bool run_cuda = (hostClauseEnd.size() > 0);
-    if (run_cuda) {
-        confl = checkConflictCaller(num_props);
-        // testCheckConflict(
-        //     (int*) hostClauseVec.data(), hostClauseEnd.data(),
-        //     (unsigned*) clauses.data, (unsigned) clauses.size(),
-        //     (uint8_t*) assigns.begin(), (unsigned*) (&confl));
-    } else
+    confl = checkConflictCaller(num_props);
 
-    while (qhead < trail.size()){
-        Lit            p   = trail[qhead++];     // 'p' is enqueued fact to propagate.
-        vec<Watcher>&  ws  = watches.lookup(p);
-        int        i, j, end;
-        num_props++;
-        
-        // First check for conflicts
-        
-        
-        if (confl == CREF_UNDEF) {
-            confl = CRef_Undef;
-            // std::vector<Lit> tmpLits;
-            // std::vector<CRef> tmpCRefs;
-            for (i = j = 0, end = ws.size(); i < end; i++){
-                // Try to avoid inspecting the clause:
-                Lit blocker = ws[i].blocker;
-                if (value(blocker) == l_True){
-                    ws[j++] = ws[i]; continue; }
-
-                // Make sure the false literal is data[1]:
-                CRef     cr        = ws[i].cref;
-                Clause&  c         = ca[cr];
-                Lit      false_lit = ~p;
-                if (c[0] == false_lit) {
-                    c[0] = c[1], c[1] = false_lit;
-                }
-                assert(c[1] == false_lit);
-
-                // If 0th watch is true, then clause is already satisfied.
-                Lit     first = c[0];
-                Watcher w     = Watcher(cr, first);
-                assert(value(first) == VALUE(first.x, assigns.begin()));
-                if (value(first) == l_True){
-                    ws[j++] = w; continue; }
-
-                // Look for new watch:
-                bool flag = false;
-                for (int k = 2; k < c.size(); k++) {
-                    if (value(c[k]) != l_False){
-                        c[1] = c[k]; c[k] = false_lit;
-                        watches[~c[1]].push(w);
-                        flag = true;
-                        break;
-                    }
-                }
-                if (flag) continue;
-
-                // Did not find watch -- clause is unit under assignment:
-                ws[j++] = w;
-                if (value(first) == l_False){
-                    confl = cr;
-                    qhead = trail.size();
-                    // Copy the remaining watches:
-                    i++;
-                    while (i < end)
-                        ws[j++] = ws[i++];
-                    break;
-                }else {
-                    // tmpCRefs.push_back(cr);
-                    // tmpLits.push_back(first);
-                    uncheckedEnqueue(first, cr);
-                }
-            }
-            // for (unsigned n = 0; n < tmpLits.size(); n++) {
-            //     if (value(tmpLits[n]) == l_Undef)
-            //         uncheckedEnqueue(tmpLits[n], tmpCRefs[n]);
-            // }
-        } else {
-            qhead = trail.size();
-            i = j = 0;
-            break;
-        }
-        ws.shrink(i - j);
-    }
     propagations += num_props;
     simpDB_props -= num_props;
 
-    return confl;
+    hostConflicts.clear();
+    if (confl != CREF_UNDEF) hostConflicts.push_back(confl);
 }
-#else
 CRef Solver::propagate() {
     CRef    confl     = CRef_Undef;
     int     num_props = 0;
@@ -197,11 +115,10 @@ CRef Solver::propagate() {
 
     return confl;
 }
-#endif
 
 CRef Solver::checkConflictCaller(int& num_props) {
     
-    CRef confl;
+    CRef confl = CREF_UNDEF;
     unsigned implCount;
     while (true) {
         cudaMemset(deviceConfl, 0xFF, sizeof(unsigned));
