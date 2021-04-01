@@ -238,35 +238,15 @@ CRef Solver::checkConflictCaller(int& num_props) {
             for (unsigned i = 0; i < implCount; i++) {
                 CRef cr = hostImplSource[i];
                 Clause& c = ca[cr];
-                int undef_count = 0;
-                for (int k = 0; k < c.size(); k++) {
-                    // printf("%d ", toInt(value(c[k])));
-                    if (value(c[k]) == l_Undef) {
-                        undef_count++;
-                        if (undef_count > 1) {
-                            printf("Clause %d Multiple Undef.\n", cr);
-                            exit(0);
-                        }
-                    }
-                    if (value(c[k]) == l_True) {
-                        printf("Clause already satisfied.\n");
-                        exit(0);
-                    }
-                }
-                // printf("\n");
-                assert(value(hostImplications[i]) == l_Undef);
-                assert(hostImplSource[i] != CRef_Undef);
                 uncheckedEnqueue(hostImplications[i], hostImplSource[i]);
-                bool check = false;
                 for (int k = 0; k < c.size(); k++) {
                     if (value(c[k]) == l_True) {
-                        check = true;
                         Lit tmp = c[k];
                         c[k] = c[0];
                         c[0] = tmp;
+                        break;
                     }
                 }
-                assert(check);
             }
         }
         if (implCount == 0 || confl != CREF_UNDEF) break;
@@ -304,7 +284,7 @@ __global__ void checkConflict(int* clauses, unsigned* ends, unsigned* crefs, uns
         } else if (VALUE(implied, assigns) == LF) {
             // Failed to obtain lock.
             // conflict
-            // valCount[LF] = endIdx - startIdx;
+            valCount[LF] = endIdx - startIdx;
         }
     }
     if (valCount[LF] == endIdx - startIdx) {
