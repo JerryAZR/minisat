@@ -23,6 +23,8 @@
 #define USE_CUDA
 #define CHECK_CUDA_ERROR
 
+#define MAX_CONFL   256
+
 __global__ void checkConflict(int* clauses, unsigned* ends, unsigned* crefs,
     unsigned clauseCount, uint8_t* assigns, int* lock, unsigned* conflict,
     int* implications, unsigned* implSource, unsigned* implCount);

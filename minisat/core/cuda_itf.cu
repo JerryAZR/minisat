@@ -23,21 +23,20 @@ void Solver::hostVecInit() {
 
 void Solver::cudaClauseInit() {
 #ifdef USE_CUDA
-    size_t litCount = hostClauseVec.size();
-    size_t clauseCount = hostClauseEnd.size();
+    size_t varCount = assigns.size();
     deviceClauseVec.init((unsigned*)hostClauseVec.data(), hostClauseVec.size());
     deviceClauseEnd.init((unsigned*)hostClauseEnd.data(), hostClauseEnd.size());
     deviceCRefs.init((unsigned*)clauses.data, clauses.size());
     checkCudaError("Failed to initialize memory for clause data.\n");
     cudaMalloc(&deviceConfl, sizeof(unsigned));
-    cudaMalloc(&deviceAssigns, sizeof(uint8_t) * assigns.size());
+    cudaMalloc(&deviceAssigns, sizeof(uint8_t) * varCount);
     cudaMalloc(&deviceImplCount, sizeof(unsigned));
-    cudaMalloc(&deviceImplications, sizeof(int) * assigns.size());
-    cudaMalloc(&deviceImplSource, sizeof(unsigned) * assigns.size());
-    cudaMalloc(&deviceLocks, sizeof(int) * assigns.size());
+    cudaMalloc(&deviceImplications, sizeof(int) * varCount);
+    cudaMalloc(&deviceImplSource, sizeof(unsigned) * varCount);
+    cudaMalloc(&deviceLocks, sizeof(int) * varCount);
     checkCudaError("Failed to allocate memory for assgnment data.\n");
-    hostImplications = (Lit*)malloc(sizeof(int) * assigns.size());
-    hostImplSource = (CRef*)malloc(sizeof(unsigned) * assigns.size());
+    hostImplications = (Lit*)malloc(sizeof(int) * varCount);
+    hostImplSource = (CRef*)malloc(sizeof(unsigned) * varCount);
 #endif
 }
 
