@@ -17,22 +17,19 @@ using namespace Minisat;
 |      * the propagation queue is empty, even if there was a conflict.
 |________________________________________________________________________________________________@*/
 void Solver::propagate(std::vector<CRef>& hostConflicts) {
-    CRef    confl     = CREF_UNDEF;
     int     num_props = 0;
 
-    confl = checkConflictCaller(num_props);
+    checkConflictCaller(num_props, hostConflicts);
 
     propagations += num_props;
     simpDB_props -= num_props;
-
-    hostConflicts.clear();
-    if (confl != CREF_UNDEF) hostConflicts.push_back(confl);
 }
 
-CRef Solver::checkConflictCaller(int& num_props) {
+void Solver::checkConflictCaller(int& num_props, std::vector<CRef>& hostConflicts) {
     
     CRef confl = CREF_UNDEF;
     unsigned implCount;
+    hostConflicts.clear();
     while (true) {
         cudaMemset(deviceConfl, 0xFF, sizeof(unsigned));
         cudaMemset(deviceImplCount, 0, sizeof(unsigned));
@@ -74,10 +71,11 @@ CRef Solver::checkConflictCaller(int& num_props) {
                 }
             }
         }
+        if (confl != CREF_UNDEF) {
+            hostConflicts.push_back(confl);
+        }
         if (implCount == 0 || confl != CREF_UNDEF) break;
     }
-
-    return confl;
 }
 // Cuda device functions
 
