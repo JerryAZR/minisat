@@ -308,7 +308,7 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
     //
     out_learnt.push();      // (leave room for the asserting literal)
     int index   = trail.size() - 1;
-    printf("Tracing implication graph.\n");
+    // printf("Tracing implication graph.\n");
 
     do{
         assert(confl != CRef_Undef); // (otherwise should be UIP)
@@ -329,8 +329,9 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
                 seen[var(q)] = 1;
                 if (level(var(q)) >= decisionLevel())
                     pathC++;
-                else
+                else {
                     out_learnt.push(q);
+                }
             }
         }
         
@@ -346,22 +347,20 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
     assert(level(var(p)) >= decisionLevel());
 
     // Simplify conflict clause:
-    //
-    printf("Copy learnt clause, ccmin_mode=%d\n", ccmin_mode);
-    printf("Learnt Clause size: %d\n", out_learnt.size());
+    // //
+    // printf("Copy learnt clause, ccmin_mode=%d\n", ccmin_mode);
+    // printf("Learnt Clause size: %d\n", out_learnt.size());
     int i, j;
     out_learnt.copyTo(analyze_toclear);
-    printf("Simplify conflict clause, ccmin_mode=%d\n", ccmin_mode);
+    // printf("Simplify conflict clause, ccmin_mode=%d\n", ccmin_mode);
     if (ccmin_mode == 2){
-        printf("Start simplify\n");
+        // printf("Start simplify\n");
         for (i = j = 1; i < out_learnt.size(); i++) {
-            printf("i=%d, j=%d;  \n", i, j);
-            bool condition1 = reason(var(out_learnt[i])) == CRef_Undef;
-            bool condition2 = !litRedundant(out_learnt[i]);
+            // printf("i=%d, j=%d;  \n", i, j);
             if (reason(var(out_learnt[i])) == CRef_Undef || !litRedundant(out_learnt[i]))
                 out_learnt[j++] = out_learnt[i];
         }
-        printf("\n");
+        // printf("\n");
     }
     else if (ccmin_mode == 1){
         for (i = j = 1; i < out_learnt.size(); i++){
@@ -387,7 +386,7 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
 
     // Find correct backtrack level:
     //
-    printf("Find correct backtrack level\n");
+    // printf("Find correct backtrack level\n");
     if (out_learnt.size() == 1)
         out_btlevel = 0;
     else{

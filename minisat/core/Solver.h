@@ -144,7 +144,7 @@ public:
     void cudaAssignmentUpdate();
     void cudaLearntUpdate();
     void verifyUnsat(CRef cr);
-    CRef checkConflictCaller();
+    CRef checkConflictCaller(int& num_props);
     bool cpuCheckConflict();
     void getUnitClauses();
 

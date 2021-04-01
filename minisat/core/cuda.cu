@@ -21,6 +21,15 @@ CRef Solver::propagate() {
     CRef    confl     = CREF_UNDEF;
     int     num_props = 0;
 
+    bool run_cuda = (hostClauseEnd.size() > 0);
+    if (run_cuda) {
+        confl = checkConflictCaller(num_props);
+        // testCheckConflict(
+        //     (int*) hostClauseVec.data(), hostClauseEnd.data(),
+        //     (unsigned*) clauses.data, (unsigned) clauses.size(),
+        //     (uint8_t*) assigns.begin(), (unsigned*) (&confl));
+    } else
+
     while (qhead < trail.size()){
         Lit            p   = trail[qhead++];     // 'p' is enqueued fact to propagate.
         vec<Watcher>&  ws  = watches.lookup(p);
@@ -28,14 +37,7 @@ CRef Solver::propagate() {
         num_props++;
         
         // First check for conflicts
-        bool run_cuda = (hostClauseEnd.size() > 0);
-        if (run_cuda) {
-            confl = checkConflictCaller();
-            // testCheckConflict(
-            //     (int*) hostClauseVec.data(), hostClauseEnd.data(),
-            //     (unsigned*) clauses.data, (unsigned) clauses.size(),
-            //     (uint8_t*) assigns.begin(), (unsigned*) (&confl));
-        }
+        
         
         if (confl == CREF_UNDEF) {
             confl = CRef_Undef;
@@ -197,7 +199,7 @@ CRef Solver::propagate() {
 }
 #endif
 
-CRef Solver::checkConflictCaller() {
+CRef Solver::checkConflictCaller(int& num_props) {
     
     CRef confl;
     unsigned implCount;
@@ -223,6 +225,7 @@ CRef Solver::checkConflictCaller() {
         // getUnitClauses();
 
         if (implCount > 0) {
+            num_props += implCount;
             // Update variable assignment on the host side
             cudaMemcpy(hostImplications, deviceImplications, sizeof(int) * implCount, cudaMemcpyDeviceToHost);
             cudaMemcpy(hostImplSource, deviceImplSource, sizeof(unsigned) * implCount, cudaMemcpyDeviceToHost);
@@ -256,8 +259,12 @@ CRef Solver::checkConflictCaller() {
                 uncheckedEnqueue(hostImplications[i], hostImplSource[i]);
                 bool check = false;
                 for (int k = 0; k < c.size(); k++) {
-                    if (value(c[k]) == l_True)
+                    if (value(c[k]) == l_True) {
                         check = true;
+                        Lit tmp = c[k];
+                        c[k] = c[0];
+                        c[0] = tmp;
+                    }
                 }
                 assert(check);
             }
