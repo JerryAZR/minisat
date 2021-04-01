@@ -25,6 +25,8 @@
 
 #define MAX_CONFL   256
 
+#define BLOCK_SIZE  256
+
 __global__ void checkConflict(int* clauses, unsigned* ends, unsigned* crefs,
     unsigned clauseCount, uint8_t* assigns, int* lock, unsigned* conflicts, unsigned* conflCount,
     int* implications, unsigned* implSource, unsigned* implCount);
