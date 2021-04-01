@@ -731,8 +731,8 @@ lbool Solver::search(int nof_conflicts)
 
     for (;;){
         propagate(hostConflicts);
-        CRef confl = (hostConflicts.size() == 0) ? CRef_Undef : hostConflicts[0];
-        if (confl != CRef_Undef){
+        if (hostConflicts.size() > 0){
+            CRef confl = hostConflicts[0];
             // CONFLICT
             conflicts++; conflictC++;
             if (decisionLevel() == 0) return l_False;

@@ -26,7 +26,6 @@ void Solver::propagate(std::vector<CRef>& hostConflicts) {
 }
 
 void Solver::checkConflictCaller(int& num_props, std::vector<CRef>& hostConflicts) {
-    CRef confl = CREF_UNDEF;
     unsigned implCount;
     unsigned conflCount;
     hostConflicts.clear();
