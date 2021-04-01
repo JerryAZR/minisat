@@ -732,27 +732,30 @@ lbool Solver::search(int nof_conflicts)
     for (;;){
         propagate(hostConflicts);
         if (hostConflicts.size() > 0){
-            CRef confl = hostConflicts[0];
+
             // CONFLICT
             conflicts++; conflictC++;
             if (decisionLevel() == 0) return l_False;
 
-            learnt_clause.clear();
-            analyze(confl, learnt_clause, backtrack_level);
-            cancelUntil(backtrack_level);
+            for (unsigned i = 0; i < 1; i++) {
+                CRef confl = hostConflicts[0];
+                learnt_clause.clear();
+                analyze(confl, learnt_clause, backtrack_level);
+                cancelUntil(backtrack_level);
 
-            if (learnt_clause.size() == 1){
-                assert(value(learnt_clause[0]) == l_Undef);
-                uncheckedEnqueue(learnt_clause[0]);
-            }else{
-                CRef cr = ca.alloc(learnt_clause, true);
-                learnts.push(cr);
-                attachClause(cr);
-                claBumpActivity(ca[cr]);
-                assert(value(learnt_clause[0]) == l_Undef);
-                uncheckedEnqueue(learnt_clause[0], cr);
+                if (learnt_clause.size() == 1){
+                    assert(value(learnt_clause[0]) == l_Undef);
+                    uncheckedEnqueue(learnt_clause[0]);
+                }else{
+                    CRef cr = ca.alloc(learnt_clause, true);
+                    learnts.push(cr);
+                    attachClause(cr);
+                    claBumpActivity(ca[cr]);
+                    assert(value(learnt_clause[0]) == l_Undef);
+                    uncheckedEnqueue(learnt_clause[0], cr);
+                }
             }
-
+            
             varDecayActivity();
             claDecayActivity();
 
