@@ -28,7 +28,7 @@ CRef Solver::propagate() {
         num_props++;
         
         // First check for conflicts
-        bool run_cuda = (hostClauseEnd.size() > 0) && (ws.size() > 32);
+        bool run_cuda = (hostClauseEnd.size() > 0);
         if (run_cuda) {
             confl = checkConflictCaller();
             // testCheckConflict(
@@ -198,66 +198,71 @@ CRef Solver::propagate() {
 #endif
 
 CRef Solver::checkConflictCaller() {
+    
     CRef confl;
     unsigned implCount;
-    cudaMemset(deviceConfl, 0xFF, sizeof(unsigned));
-    cudaMemset(deviceImplCount, 0, sizeof(unsigned));
-    cudaAssignmentUpdate();
-    checkCudaError("Failed to copy assignment data.\n");
+    while (true) {
+        cudaMemset(deviceConfl, 0xFF, sizeof(unsigned));
+        cudaMemset(deviceImplCount, 0, sizeof(unsigned));
+        cudaAssignmentUpdate();
+        checkCudaError("Failed to copy assignment data.\n");
 
-    const size_t blockSize = 32;
-    size_t gridSize = (clauses.size() - 1) / blockSize + 1;
-    checkConflict<<<gridSize, blockSize>>>(
-        (int*)deviceClauseVec.data, deviceClauseEnd.data, deviceCRefs.data,
-        deviceCRefs.size, deviceAssigns, deviceLocks,
-        deviceConfl, deviceImplications, deviceImplSource, deviceImplCount
-    );
-    checkCudaError("Error while launching kernel.\n");
-    
-    cudaMemcpy(&confl, deviceConfl, sizeof(unsigned), cudaMemcpyDeviceToHost);
-    cudaMemcpy(&implCount, deviceImplCount, sizeof(unsigned), cudaMemcpyDeviceToHost);
-    checkCudaError("Failed to copy data back.\n");
-    cudaDeviceSynchronize();
-    getUnitClauses();
-
-    if (implCount > 0) {
-        // Update variable assignment on the host side
-        cudaMemcpy(hostImplications, deviceImplications, sizeof(int) * implCount, cudaMemcpyDeviceToHost);
-        cudaMemcpy(hostImplSource, deviceImplSource, sizeof(unsigned) * implCount, cudaMemcpyDeviceToHost);
+        const size_t blockSize = 32;
+        size_t gridSize = (clauses.size() - 1) / blockSize + 1;
+        checkConflict<<<gridSize, blockSize>>>(
+            (int*)deviceClauseVec.data, deviceClauseEnd.data, deviceCRefs.data,
+            deviceCRefs.size, deviceAssigns, deviceLocks,
+            deviceConfl, deviceImplications, deviceImplSource, deviceImplCount
+        );
+        checkCudaError("Error while launching kernel.\n");
+        
+        cudaMemcpy(&confl, deviceConfl, sizeof(unsigned), cudaMemcpyDeviceToHost);
+        cudaMemcpy(&implCount, deviceImplCount, sizeof(unsigned), cudaMemcpyDeviceToHost);
+        checkCudaError("Failed to copy data back.\n");
         cudaDeviceSynchronize();
-        printf("Found unit clause: ");
-        for (unsigned i = 0; i < implCount; i++) {
-            printf(" %d ", hostImplSource[i]);
-        }
-        printf("\n");
-        for (unsigned i = 0; i < implCount; i++) {
-            CRef cr = hostImplSource[i];
-            Clause& c = ca[cr];
-            int undef_count = 0;
-            for (int k = 0; k < c.size(); k++) {
-                printf("%d ", toInt(value(c[k])));
-                if (value(c[k]) == l_Undef) {
-                    undef_count++;
-                    if (undef_count > 1) {
-                        printf("Clause %d Multiple Undef.\n", cr);
+        // getUnitClauses();
+
+        if (implCount > 0) {
+            // Update variable assignment on the host side
+            cudaMemcpy(hostImplications, deviceImplications, sizeof(int) * implCount, cudaMemcpyDeviceToHost);
+            cudaMemcpy(hostImplSource, deviceImplSource, sizeof(unsigned) * implCount, cudaMemcpyDeviceToHost);
+            cudaDeviceSynchronize();
+            // printf("Found unit clause: ");
+            // for (unsigned i = 0; i < implCount; i++) {
+            //     printf(" %d ", hostImplSource[i]);
+            // }
+            // printf("\n");
+            for (unsigned i = 0; i < implCount; i++) {
+                CRef cr = hostImplSource[i];
+                Clause& c = ca[cr];
+                int undef_count = 0;
+                for (int k = 0; k < c.size(); k++) {
+                    // printf("%d ", toInt(value(c[k])));
+                    if (value(c[k]) == l_Undef) {
+                        undef_count++;
+                        if (undef_count > 1) {
+                            printf("Clause %d Multiple Undef.\n", cr);
+                            exit(0);
+                        }
+                    }
+                    if (value(c[k]) == l_True) {
+                        printf("Clause already satisfied.\n");
                         exit(0);
                     }
                 }
-                if (value(c[k]) == l_True) {
-                    printf("Clause already satisfied.\n");
-                    exit(0);
+                // printf("\n");
+                assert(value(hostImplications[i]) == l_Undef);
+                assert(hostImplSource[i] != CRef_Undef);
+                uncheckedEnqueue(hostImplications[i], hostImplSource[i]);
+                bool check = false;
+                for (int k = 0; k < c.size(); k++) {
+                    if (value(c[k]) == l_True)
+                        check = true;
                 }
+                assert(check);
             }
-            printf("\n");
-            assert(value(hostImplications[i]) == l_Undef);
-            uncheckedEnqueue(hostImplications[i], hostImplSource[i]);
-            bool check = false;
-            for (int k = 0; k < c.size(); k++) {
-                if (value(c[k]) == l_True)
-                    check = true;
-            }
-            assert(check);
         }
+        if (implCount == 0 || confl != CREF_UNDEF) break;
     }
 
     return confl;

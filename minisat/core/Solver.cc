@@ -666,9 +666,7 @@ lbool Solver::search(int nof_conflicts)
             if (decisionLevel() == 0) return l_False;
 
             learnt_clause.clear();
-            printf("Analyze.\n");
             analyze(confl, learnt_clause, backtrack_level);
-            printf("Backtrack.\n");
             cancelUntil(backtrack_level);
 
             if (learnt_clause.size() == 1){
@@ -707,19 +705,16 @@ lbool Solver::search(int nof_conflicts)
                 return l_Undef; }
 
             // Simplify the set of problem clauses:
-            printf("Simplify.\n");
             if (decisionLevel() == 0 && !simplify())
                 return l_False;
 
             if (learnts.size()-nAssigns() >= max_learnts) {
                 // Reduce the set of learnt clauses:
-                printf("ReduceDB\n");
                 reduceDB();
                 cudaClauseUpdate();
             }
 
             Lit next = lit_Undef;
-            printf("Load next assumption.\n");
             while (decisionLevel() < assumptions.size()){
                 // Perform user provided assumption:
                 Lit p = assumptions[decisionLevel()];
@@ -735,7 +730,6 @@ lbool Solver::search(int nof_conflicts)
                 }
             }
 
-            printf("Pick next branch.\n");
             if (next == lit_Undef){
                 // New variable decision:
                 decisions++;
