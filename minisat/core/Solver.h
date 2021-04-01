@@ -130,7 +130,7 @@ public:
     unsigned* deviceConfl;
     uint8_t* deviceAssigns;
     unsigned* deviceImplCount;
-    uint8_t* deviceImplications;
+    int* deviceImplications;
     Lit* hostImplications;
     unsigned* deviceImplSource;
     CRef* hostImplSource;
@@ -146,6 +146,7 @@ public:
     void verifyUnsat(CRef cr);
     CRef checkConflictCaller();
     bool cpuCheckConflict();
+    void getUnitClauses();
 
     // Extra results: (read-only member variable)
     //

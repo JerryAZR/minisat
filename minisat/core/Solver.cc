@@ -308,6 +308,7 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
     //
     out_learnt.push();      // (leave room for the asserting literal)
     int index   = trail.size() - 1;
+    printf("Tracing implication graph.\n");
 
     do{
         assert(confl != CRef_Undef); // (otherwise should be UIP)
@@ -346,14 +347,23 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
 
     // Simplify conflict clause:
     //
+    printf("Copy learnt clause, ccmin_mode=%d\n", ccmin_mode);
+    printf("Learnt Clause size: %d\n", out_learnt.size());
     int i, j;
     out_learnt.copyTo(analyze_toclear);
+    printf("Simplify conflict clause, ccmin_mode=%d\n", ccmin_mode);
     if (ccmin_mode == 2){
-        for (i = j = 1; i < out_learnt.size(); i++)
+        printf("Start simplify\n");
+        for (i = j = 1; i < out_learnt.size(); i++) {
+            printf("i=%d, j=%d;  \n", i, j);
+            bool condition1 = reason(var(out_learnt[i])) == CRef_Undef;
+            bool condition2 = !litRedundant(out_learnt[i]);
             if (reason(var(out_learnt[i])) == CRef_Undef || !litRedundant(out_learnt[i]))
                 out_learnt[j++] = out_learnt[i];
-        
-    }else if (ccmin_mode == 1){
+        }
+        printf("\n");
+    }
+    else if (ccmin_mode == 1){
         for (i = j = 1; i < out_learnt.size(); i++){
             Var x = var(out_learnt[i]);
 
@@ -367,7 +377,8 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
                         break; }
             }
         }
-    }else
+    }
+    else
         i = j = out_learnt.size();
 
     max_literals += out_learnt.size();
@@ -376,6 +387,7 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
 
     // Find correct backtrack level:
     //
+    printf("Find correct backtrack level\n");
     if (out_learnt.size() == 1)
         out_btlevel = 0;
     else{
@@ -654,7 +666,9 @@ lbool Solver::search(int nof_conflicts)
             if (decisionLevel() == 0) return l_False;
 
             learnt_clause.clear();
+            printf("Analyze.\n");
             analyze(confl, learnt_clause, backtrack_level);
+            printf("Backtrack.\n");
             cancelUntil(backtrack_level);
 
             if (learnt_clause.size() == 1){
@@ -693,16 +707,19 @@ lbool Solver::search(int nof_conflicts)
                 return l_Undef; }
 
             // Simplify the set of problem clauses:
+            printf("Simplify.\n");
             if (decisionLevel() == 0 && !simplify())
                 return l_False;
 
             if (learnts.size()-nAssigns() >= max_learnts) {
                 // Reduce the set of learnt clauses:
+                printf("ReduceDB\n");
                 reduceDB();
                 cudaClauseUpdate();
             }
 
             Lit next = lit_Undef;
+            printf("Load next assumption.\n");
             while (decisionLevel() < assumptions.size()){
                 // Perform user provided assumption:
                 Lit p = assumptions[decisionLevel()];
@@ -718,6 +735,7 @@ lbool Solver::search(int nof_conflicts)
                 }
             }
 
+            printf("Pick next branch.\n");
             if (next == lit_Undef){
                 // New variable decision:
                 decisions++;

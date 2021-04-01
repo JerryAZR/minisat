@@ -32,11 +32,11 @@ void Solver::cudaClauseInit() {
     cudaMalloc(&deviceConfl, sizeof(unsigned));
     cudaMalloc(&deviceAssigns, sizeof(uint8_t) * assigns.size());
     cudaMalloc(&deviceImplCount, sizeof(unsigned));
-    cudaMalloc(&deviceImplications, sizeof(uint8_t) * assigns.size());
+    cudaMalloc(&deviceImplications, sizeof(int) * assigns.size());
     cudaMalloc(&deviceImplSource, sizeof(unsigned) * assigns.size());
     cudaMalloc(&deviceLocks, sizeof(int) * assigns.size());
     checkCudaError("Failed to allocate memory for assgnment data.\n");
-    hostImplications = (Lit*)malloc(sizeof(uint8_t) * assigns.size());
+    hostImplications = (Lit*)malloc(sizeof(int) * assigns.size());
     hostImplSource = (CRef*)malloc(sizeof(unsigned) * assigns.size());
 #endif
 }
@@ -96,5 +96,6 @@ void Solver::cudaLearntUpdate() {
 void Solver::cudaAssignmentUpdate() {
 #ifdef USE_CUDA
     cudaMemcpy(deviceAssigns, assigns.begin(), sizeof(uint8_t) * assigns.size(), cudaMemcpyHostToDevice);
+    cudaMemset(deviceLocks, 0, sizeof(int) * assigns.size());
 #endif
 }

@@ -25,7 +25,7 @@
 
 __global__ void checkConflict(int* clauses, unsigned* ends, unsigned* crefs,
     unsigned clauseCount, uint8_t* assigns, int* lock, unsigned* conflict,
-    uint8_t* implications, unsigned* implSource, unsigned* implCount);
+    int* implications, unsigned* implSource, unsigned* implCount);
 
 // test functions
 void checkCudaError(const char msg[]);

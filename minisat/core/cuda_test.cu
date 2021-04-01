@@ -45,3 +45,33 @@ bool Minisat::Solver::cpuCheckConflict() {
     }
     return false;
 }
+
+void Minisat::Solver::getUnitClauses() {
+    printf("Expected Unit clauses: ");
+    for (int i = 0; i < clauses.size(); i++) {
+        Clause& c = ca[clauses[i]];
+        bool unsat = true;
+        int count = 0;
+        Lit imply = lit_Undef;
+        for (int j = 0; j < c.size(); j++) {
+            if (value(c[j]) == l_Undef) {
+                count++;
+                imply = c[j];
+            }
+            if (value(c[j]) == l_True) {
+                unsat = false;
+            }
+        }
+        if (!unsat || (count != 1)) {
+            continue;
+        } else {
+            printf(" %d(%d) ", clauses[i], toInt(imply));
+            printf("(");
+            for (int j = 0; j < c.size(); j++) {
+                printf("%d ", toInt(value(c[j])));
+            }
+            printf(")");
+        }
+    }
+    printf("\n");
+}
