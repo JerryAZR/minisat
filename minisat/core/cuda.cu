@@ -28,93 +28,6 @@ void Solver::propagate(std::vector<CRef>& hostConflicts) {
     hostConflicts.clear();
     if (confl != CREF_UNDEF) hostConflicts.push_back(confl);
 }
-CRef Solver::propagate() {
-    CRef    confl     = CRef_Undef;
-    int     num_props = 0;
-
-    while (qhead < trail.size()){
-        Lit            p   = trail[qhead++];     // 'p' is enqueued fact to propagate.
-        vec<Watcher>&  ws  = watches.lookup(p);
-        int        i, j, end;
-        num_props++;
-
-        // for (i = 0; i < ws.size(); i++) {
-        //     CRef     cr        = ws[i].cref;
-        //     Clause& c = ca[cr];
-
-        //     unsigned startIdx = 0;
-        //     unsigned endIdx = c.size();
-        //     bool unsat = true;
-        //     for (j = startIdx; j < endIdx; j++) {
-        //         Lit variable = c[j];
-        //         if (value(variable) != l_False) {
-        //             unsat = false;
-        //             break;
-        //         }
-        //     }
-        //     if (unsat) {
-        //         confl = cr;
-        //         break;
-        //     }
-        // }
-        // if (confl != CRef_Undef) {
-        //     i = j;
-        //     break;
-        // }
-        for (i = j = 0, end = ws.size(); i < end; i++){
-            // Try to avoid inspecting the clause:
-            Lit blocker = ws[i].blocker;
-            if (value(blocker) == l_True){
-                ws[j++] = ws[i]; continue; }
-
-            // Make sure the false literal is data[1]:
-            CRef     cr        = ws[i].cref;
-            Clause&  c         = ca[cr];
-            Lit      false_lit = ~p;
-            if (c[0] == false_lit) {
-                c[0] = c[1], c[1] = false_lit;
-            }
-            assert(c[1] == false_lit);
-
-            // If 0th watch is true, then clause is already satisfied.
-            Lit     first = c[0];
-            Watcher w     = Watcher(cr, first);
-            assert(value(first) == VALUE(first.x, assigns.begin()));
-            if (value(first) == l_True){
-                ws[j++] = w; continue; }
-
-            // Look for new watch:
-            bool flag = false;
-            for (int k = 2; k < c.size(); k++) {
-                if (value(c[k]) != l_False){
-                    c[1] = c[k]; c[k] = false_lit;
-                    watches[~c[1]].push(w);
-                    flag = true;
-                    break;
-                }
-            }
-            if (flag) continue;
-
-            // Did not find watch -- clause is unit under assignment:
-            ws[j++] = w;
-            if (value(first) == l_False){
-                confl = cr;
-                qhead = trail.size();
-                // Copy the remaining watches:
-                i++;
-                while (i < end)
-                    ws[j++] = ws[i++];
-                break;
-            }else
-                uncheckedEnqueue(first, cr);
-        }
-        ws.shrink(i - j);
-    }
-    propagations += num_props;
-    simpDB_props -= num_props;
-
-    return confl;
-}
 
 CRef Solver::checkConflictCaller(int& num_props) {
     
@@ -139,7 +52,6 @@ CRef Solver::checkConflictCaller(int& num_props) {
         cudaMemcpy(&implCount, deviceImplCount, sizeof(unsigned), cudaMemcpyDeviceToHost);
         checkCudaError("Failed to copy data back.\n");
         cudaDeviceSynchronize();
-        // getUnitClauses();
 
         if (implCount > 0) {
             num_props += implCount;
@@ -147,11 +59,7 @@ CRef Solver::checkConflictCaller(int& num_props) {
             cudaMemcpy(hostImplications, deviceImplications, sizeof(int) * implCount, cudaMemcpyDeviceToHost);
             cudaMemcpy(hostImplSource, deviceImplSource, sizeof(unsigned) * implCount, cudaMemcpyDeviceToHost);
             cudaDeviceSynchronize();
-            // printf("Found unit clause: ");
-            // for (unsigned i = 0; i < implCount; i++) {
-            //     printf(" %d ", hostImplSource[i]);
-            // }
-            // printf("\n");
+
             for (unsigned i = 0; i < implCount; i++) {
                 CRef cr = hostImplSource[i];
                 Clause& c = ca[cr];

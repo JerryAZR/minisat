@@ -633,6 +633,71 @@ bool Solver::simplify()
 }
 
 
+CRef Solver::propagate() {
+    CRef    confl     = CRef_Undef;
+    int     num_props = 0;
+
+    while (qhead < trail.size()){
+        Lit            p   = trail[qhead++];     // 'p' is enqueued fact to propagate.
+        vec<Watcher>&  ws  = watches.lookup(p);
+        int        i, j, end;
+        num_props++;
+
+        for (i = j = 0, end = ws.size(); i < end; i++){
+            // Try to avoid inspecting the clause:
+            Lit blocker = ws[i].blocker;
+            if (value(blocker) == l_True){
+                ws[j++] = ws[i]; continue; }
+
+            // Make sure the false literal is data[1]:
+            CRef     cr        = ws[i].cref;
+            Clause&  c         = ca[cr];
+            Lit      false_lit = ~p;
+            if (c[0] == false_lit) {
+                c[0] = c[1], c[1] = false_lit;
+            }
+            assert(c[1] == false_lit);
+
+            // If 0th watch is true, then clause is already satisfied.
+            Lit     first = c[0];
+            Watcher w     = Watcher(cr, first);
+            if (value(first) == l_True){
+                ws[j++] = w; continue; }
+
+            // Look for new watch:
+            bool flag = false;
+            for (int k = 2; k < c.size(); k++) {
+                if (value(c[k]) != l_False){
+                    c[1] = c[k]; c[k] = false_lit;
+                    watches[~c[1]].push(w);
+                    flag = true;
+                    break;
+                }
+            }
+            if (flag) continue;
+
+            // Did not find watch -- clause is unit under assignment:
+            ws[j++] = w;
+            if (value(first) == l_False){
+                confl = cr;
+                qhead = trail.size();
+                // Copy the remaining watches:
+                i++;
+                while (i < end)
+                    ws[j++] = ws[i++];
+                break;
+            }else
+                uncheckedEnqueue(first, cr);
+        }
+        ws.shrink(i - j);
+    }
+    propagations += num_props;
+    simpDB_props -= num_props;
+
+    return confl;
+}
+
+
 /*_________________________________________________________________________________________________
 |
 |  search : (nof_conflicts : int) (params : const SearchParams&)  ->  [lbool]
