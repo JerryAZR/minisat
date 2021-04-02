@@ -734,8 +734,8 @@ lbool Solver::search(int nof_conflicts)
     int         conflictC = 0;
     vec<Lit>    learnt_clause;
     std::vector<CRef> hostConflicts;
-    const int   conflUpdateThreshold = 128;
-    int         newConflCount = 0;
+    const int   conflUpdateThreshold = 16;
+    std::vector<CRef> pendingLearnts;
     starts++;
 
     // printf("nclauses: %d, nlearnt: %d\n", nClauses(), nLearnts());
@@ -788,12 +788,12 @@ lbool Solver::search(int nof_conflicts)
                 // Needs to be checked enqueue,
                 // because there could be a conflict between different learnt clauses.
                 enqueue(tmpAssignments[i], tmpSources[i]);
+                pendingLearnts.push_back(tmpSources[i]);
             }
 
-            newConflCount += tmpSources.size();
-            if (newConflCount >= conflUpdateThreshold) {
-                cudaLearntUpdate();
-                newConflCount = 0;
+            if (pendingLearnts.size() >= conflUpdateThreshold) {
+                cudaLearntAppend(pendingLearnts);
+                pendingLearnts.clear();
             }
 
             varDecayActivity();
@@ -826,7 +826,13 @@ lbool Solver::search(int nof_conflicts)
             if (learnts.size()-nAssigns() >= max_learnts) {
                 // Reduce the set of learnt clauses:
                 reduceDB();
+                pendingLearnts.clear();
                 cudaClauseUpdate();
+            } else if (decisionLevel() == 0) {
+                // Simplify has been called.
+                // Learnt clauses might have changed
+                pendingLearnts.clear();
+                cudaLearntUpdate();
             }
 
             Lit next = lit_Undef;

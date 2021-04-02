@@ -45,8 +45,8 @@ void Solver::checkConflictCaller(int& num_props, std::vector<CRef>& hostConflict
         
         cudaMemcpy(&conflCount, deviceConflCount, sizeof(unsigned), cudaMemcpyDeviceToHost);
         cudaMemcpy(&implCount, deviceImplCount, sizeof(unsigned), cudaMemcpyDeviceToHost);
-        checkCudaError("Failed to copy data back.\n");
         cudaDeviceSynchronize();
+        checkCudaError("Failed to copy metadata back.\n");
 
         if (implCount > 0) {
             num_props += implCount;
@@ -54,6 +54,7 @@ void Solver::checkConflictCaller(int& num_props, std::vector<CRef>& hostConflict
             cudaMemcpy(hostImplications, deviceImplications, sizeof(int) * implCount, cudaMemcpyDeviceToHost);
             cudaMemcpy(hostImplSource, deviceImplSource, sizeof(unsigned) * implCount, cudaMemcpyDeviceToHost);
             cudaDeviceSynchronize();
+            checkCudaError("Failed to copy propagation assignments back.\n");
 
             for (unsigned i = 0; i < implCount; i++) {
                 CRef cr = hostImplSource[i];
@@ -74,6 +75,7 @@ void Solver::checkConflictCaller(int& num_props, std::vector<CRef>& hostConflict
             hostConflicts.resize(conflCount);
             cudaMemcpy(hostConflicts.data(), deviceConfls, conflCount * sizeof(unsigned), cudaMemcpyDeviceToHost);
             cudaDeviceSynchronize();
+            checkCudaError("Failed to copy conflicting clauses back.\n");
         }
         if (implCount == 0 || conflCount > 0) break;
     }

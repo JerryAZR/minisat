@@ -144,6 +144,7 @@ public:
     void cudaClauseFree();
     void cudaAssignmentUpdate();
     void cudaLearntUpdate();
+    void cudaLearntAppend(std::vector<CRef>& newLearnts);
     void verifyUnsat(CRef cr);
     void checkConflictCaller(int& num_props, std::vector<CRef>& hostConflicts);
     bool cpuCheckConflict();

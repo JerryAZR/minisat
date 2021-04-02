@@ -96,6 +96,25 @@ void Solver::cudaLearntUpdate() {
     deviceCRefs.bulk_push((unsigned*)learnts.data, learnts.size());
 }
 
+void Solver::cudaLearntAppend(std::vector<CRef>& newLearnts) {
+    hostLearntVec.clear();
+    hostLearntEnd.clear();
+    unsigned originalLitCount = deviceClauseVec.size;
+    for (unsigned i = 0; i < newLearnts.size(); i++) {
+        CRef cr = newLearnts[i];
+        if (cr == CRef_Undef) continue;
+        Clause& c = ca[cr];
+        for (int j = 0; j < c.size(); j++) {
+            hostLearntVec.push_back(c[j]);
+        }
+        hostLearntEnd.push_back(originalLitCount + hostLearntVec.size());
+        c.sendToGPU();
+    }
+    deviceClauseVec.bulk_push((unsigned*)hostLearntVec.data(), hostLearntVec.size());
+    deviceClauseEnd.bulk_push((unsigned*)hostLearntEnd.data(), hostLearntEnd.size());
+    deviceCRefs.bulk_push((unsigned*)newLearnts.data(), newLearnts.size());
+}
+
 void Solver::cudaAssignmentUpdate() {
 #ifdef USE_CUDA
     cudaMemcpy(deviceAssigns, assigns.begin(), sizeof(uint8_t) * assigns.size(), cudaMemcpyHostToDevice);
