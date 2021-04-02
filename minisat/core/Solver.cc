@@ -548,12 +548,15 @@ void Solver::removeSatisfied(vec<CRef>& cs)
             removeClause(cs[i]);
         else{
             // Trim clause:
-            assert(value(c[0]) == l_Undef && value(c[1]) == l_Undef);
-            for (int k = 2; k < c.size(); k++)
+            unsigned undefCount = 0;
+            for (int k = 0; k < c.size(); k++) {
                 if (value(c[k]) == l_False){
                     c[k--] = c[c.size()-1];
                     c.pop();
                 }
+                if (value(c[k]) == l_Undef) undefCount++;
+            }
+            assert(undefCount > 1);
             cs[j++] = cs[i];
         }
     }
@@ -724,6 +727,7 @@ lbool Solver::search(int nof_conflicts)
     int         conflictC = 0;
     vec<Lit>    learnt_clause;
     std::vector<CRef> hostConflicts;
+    unsigned    GPULearntCount = 0;
     starts++;
 
     // printf("nclauses: %d, nlearnt: %d\n", nClauses(), nLearnts());
@@ -734,27 +738,36 @@ lbool Solver::search(int nof_conflicts)
         if (hostConflicts.size() > 0){
 
             // CONFLICT
-            conflicts++; conflictC++;
             if (decisionLevel() == 0) return l_False;
+            conflicts++; conflictC++;
 
-            for (unsigned i = 0; i < 1; i++) {
-                CRef confl = hostConflicts[0];
+            int tmpBTLevel = INT32_MAX;
+            Lit tmpAssignment = lit_Undef;
+            CRef tmpSource = CRef_Undef;
+            for (unsigned i = 0; i < hostConflicts.size(); i++) {
+                CRef confl = hostConflicts[i];
                 learnt_clause.clear();
                 analyze(confl, learnt_clause, backtrack_level);
-                cancelUntil(backtrack_level);
 
                 if (learnt_clause.size() == 1){
-                    assert(value(learnt_clause[0]) == l_Undef);
-                    uncheckedEnqueue(learnt_clause[0]);
+                    if (backtrack_level < tmpBTLevel) {
+                        tmpAssignment = learnt_clause[0];
+                        tmpSource = CRef_Undef;
+                    }
                 }else{
                     CRef cr = ca.alloc(learnt_clause, true);
                     learnts.push(cr);
                     attachClause(cr);
                     claBumpActivity(ca[cr]);
-                    assert(value(learnt_clause[0]) == l_Undef);
-                    uncheckedEnqueue(learnt_clause[0], cr);
+                    if (backtrack_level < tmpBTLevel) {
+                        tmpAssignment = learnt_clause[0];
+                        tmpSource = cr;
+                    }
                 }
+                if (backtrack_level < tmpBTLevel) tmpBTLevel = backtrack_level;
             }
+            cancelUntil(tmpBTLevel);
+            uncheckedEnqueue(tmpAssignment, tmpSource);
             
             varDecayActivity();
             claDecayActivity();
@@ -786,6 +799,15 @@ lbool Solver::search(int nof_conflicts)
             if (learnts.size()-nAssigns() >= max_learnts) {
                 // Reduce the set of learnt clauses:
                 reduceDB();
+                GPULearntCount = learnts.size();
+                cudaClauseUpdate();
+                static unsigned reduceDB_count = 0;
+                reduceDB_count++;
+                if (reduceDB_count % 256 == 0) {
+                    printf("reduceDB called %d times.\n", reduceDB_count);
+                }
+            } else if (learnts.size() - GPULearntCount >= (max_learnts / 4)) {
+                GPULearntCount = learnts.size();
                 cudaClauseUpdate();
             }
 

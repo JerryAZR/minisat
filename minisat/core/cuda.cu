@@ -70,7 +70,7 @@ void Solver::checkConflictCaller(int& num_props, std::vector<CRef>& hostConflict
             }
         }
         if (conflCount > 0) {
-            if (conflCount > MAX_CONFL) conflCount = MAX_CONFL;
+            if (conflCount > MAX_CONFL) { onflCount = MAX_CONFL; }
             hostConflicts.resize(conflCount);
             cudaMemcpy(hostConflicts.data(), deviceConfls, conflCount * sizeof(unsigned), cudaMemcpyDeviceToHost);
             cudaDeviceSynchronize();
