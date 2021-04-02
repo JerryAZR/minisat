@@ -98,7 +98,7 @@ Solver::Solver() :
   , simpDB_assigns     (-1)
   , simpDB_props       (0)
   , progress_estimate  (0)
-  , remove_satisfied   (false) // Would mess up cuda clause structure if turned on
+  , remove_satisfied   (true) // Would mess up cuda clause structure if turned on
   , next_var           (0)
 
     // Resource constraints:
@@ -349,7 +349,6 @@ void Solver::analyze(CRef confl, vec<Lit>& out_learnt, int& out_btlevel)
 
     }while (pathC > 0);
     out_learnt[0] = ~p;
-    assert(level(var(p)) >= decisionLevel());
 
     // Simplify conflict clause:
     // //
@@ -735,6 +734,8 @@ lbool Solver::search(int nof_conflicts)
     int         conflictC = 0;
     vec<Lit>    learnt_clause;
     std::vector<CRef> hostConflicts;
+    const int   conflUpdateThreshold = 128;
+    int         newConflCount = 0;
     starts++;
 
     // printf("nclauses: %d, nlearnt: %d\n", nClauses(), nLearnts());
@@ -751,7 +752,7 @@ lbool Solver::search(int nof_conflicts)
             int tmpBTLevel = INT32_MAX;
             std::vector<Lit> tmpAssignments;
             std::vector<CRef> tmpSources;
-            for (unsigned i = 0; i < 1; i++) {
+            for (unsigned i = 0; i < hostConflicts.size(); i++) {
                 CRef confl = hostConflicts[i];
                 learnt_clause.clear();
                 analyze(confl, learnt_clause, backtrack_level);
@@ -787,6 +788,12 @@ lbool Solver::search(int nof_conflicts)
                 // Needs to be checked enqueue,
                 // because there could be a conflict between different learnt clauses.
                 enqueue(tmpAssignments[i], tmpSources[i]);
+            }
+
+            newConflCount += tmpSources.size();
+            if (newConflCount >= conflUpdateThreshold) {
+                cudaLearntUpdate();
+                newConflCount = 0;
             }
 
             varDecayActivity();

@@ -35,7 +35,7 @@ void Solver::checkConflictCaller(int& num_props, std::vector<CRef>& hostConflict
         cudaMemset(deviceImplCount, 0, sizeof(unsigned));
         checkCudaError("Failed to copy assignment data.\n");
 
-        size_t gridSize = (clauses.size() - 1) / BLOCK_SIZE + 1;
+        size_t gridSize = (deviceClauseEnd.size - 1) / BLOCK_SIZE + 1;
         checkConflict<<<gridSize, BLOCK_SIZE>>>(
             (int*)deviceClauseVec.data, deviceClauseEnd.data, deviceCRefs.data,
             deviceCRefs.size, deviceAssigns, deviceLocks,
