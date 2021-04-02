@@ -29,10 +29,10 @@ void Solver::checkConflictCaller(int& num_props, std::vector<CRef>& hostConflict
     unsigned implCount;
     unsigned conflCount;
     hostConflicts.clear();
+    cudaAssignmentUpdate();
     while (true) {
         cudaMemset(deviceConflCount, 0, sizeof(unsigned));
         cudaMemset(deviceImplCount, 0, sizeof(unsigned));
-        cudaAssignmentUpdate();
         checkCudaError("Failed to copy assignment data.\n");
 
         size_t gridSize = (clauses.size() - 1) / BLOCK_SIZE + 1;
@@ -70,7 +70,7 @@ void Solver::checkConflictCaller(int& num_props, std::vector<CRef>& hostConflict
             }
         }
         if (conflCount > 0) {
-            if (conflCount > MAX_CONFL) { onflCount = MAX_CONFL; }
+            if (conflCount > MAX_CONFL) { conflCount = MAX_CONFL; }
             hostConflicts.resize(conflCount);
             cudaMemcpy(hostConflicts.data(), deviceConfls, conflCount * sizeof(unsigned), cudaMemcpyDeviceToHost);
             cudaDeviceSynchronize();
@@ -101,7 +101,7 @@ __global__ void checkConflict(int* clauses, unsigned* ends, unsigned* crefs, uns
         // Found a unit clause
         if (atomicExch(lock+VAR(implied), 1) == 0) {
             // Obtain the lock and set the value
-            // assigns[VAR(implied)] = SIGN(implied);
+            assigns[VAR(implied)] = SIGN(implied);
             unsigned writeIdx = atomicAdd(implCount, 1);
             implications[writeIdx] = implied;
             implSource[writeIdx] = crefs[idx];

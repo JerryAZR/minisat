@@ -143,7 +143,8 @@ class Clause {
         unsigned learnt    : 1;
         unsigned has_extra : 1;
         unsigned reloced   : 1;
-        unsigned size      : 27; }                        header;
+        unsigned onGPU     : 1;
+        unsigned size      : 26; }                        header;
     union { Lit lit; float act; uint32_t abs; CRef rel; } data[0];
 
     friend class ClauseAllocator;
@@ -154,6 +155,7 @@ class Clause {
         header.learnt    = learnt;
         header.has_extra = use_extra;
         header.reloced   = 0;
+        header.onGPU     = 0;
         header.size      = ps.size();
 
         for (int i = 0; i < ps.size(); i++) 
@@ -198,6 +200,8 @@ public:
     bool         learnt      ()      const   { return header.learnt; }
     bool         has_extra   ()      const   { return header.has_extra; }
     uint32_t     mark        ()      const   { return header.mark; }
+    bool         onGPU       ()      const   { return header.onGPU; }
+    void         sendToGPU   ()              { header.onGPU = 1; }
     void         mark        (uint32_t m)    { header.mark = m; }
     const Lit&   last        ()      const   { return data[header.size-1].lit; }
 

@@ -15,6 +15,7 @@ void Solver::hostVecInit() {
         for (int j = 0; j < c.size(); j++) {
             hostClauseVec.push_back(c[j]);
         }
+        c.sendToGPU();
         hostClauseEnd.push_back(hostClauseVec.size());
     }
 #endif
@@ -87,6 +88,7 @@ void Solver::cudaLearntUpdate() {
             hostLearntVec.push_back(c[j]);
         }
         hostLearntEnd.push_back(originalLitCount + hostLearntVec.size());
+        c.sendToGPU();
     }
     // Copy host vector to device vector
     deviceClauseVec.bulk_push((unsigned*)hostLearntVec.data(), hostLearntVec.size());
