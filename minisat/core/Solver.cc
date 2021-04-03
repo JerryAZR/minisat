@@ -734,12 +734,9 @@ lbool Solver::search(int nof_conflicts)
     int         conflictC = 0;
     vec<Lit>    learnt_clause;
     std::vector<CRef> hostConflicts;
-    const int   conflUpdateThreshold = 16;
+    const int   conflUpdateThreshold = 32;
     std::vector<CRef> pendingLearnts;
     starts++;
-
-    // printf("nclauses: %d, nlearnt: %d\n", nClauses(), nLearnts());
-    // printf("Assigns: %d\n", assigns.size());
 
     for (;;){
         propagate(hostConflicts);
