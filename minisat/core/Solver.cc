@@ -593,8 +593,9 @@ bool Solver::simplify()
 {
     assert(decisionLevel() == 0);
 
-    if (!ok || propagate() != CRef_Undef)
+    if (!ok || propagate() != CRef_Undef) {
         return ok = false;
+    }
 
     if (nAssigns() == simpDB_assigns || (simpDB_props > 0))
         return true;
@@ -735,15 +736,21 @@ lbool Solver::search(int nof_conflicts)
     vec<Lit>    learnt_clause;
     std::vector<CRef> hostConflicts;
     const int   conflUpdateThreshold = 32;
-    std::vector<CRef> pendingLearnts;
+    int         pendingLearnts = 0;
     starts++;
 
     for (;;){
+        if (pendingLearnts >= conflUpdateThreshold) {
+            cudaLearntUpdate();
+            pendingLearnts = 0;
+        }
         propagate(hostConflicts);
         if (hostConflicts.size() > 0){
 
             // CONFLICT
-            if (decisionLevel() == 0) return l_False;
+            if (decisionLevel() == 0) {
+                return l_False;
+            }
             conflicts++; conflictC++;
 
             int tmpBTLevel = INT32_MAX;
@@ -785,13 +792,9 @@ lbool Solver::search(int nof_conflicts)
                 // Needs to be checked enqueue,
                 // because there could be a conflict between different learnt clauses.
                 enqueue(tmpAssignments[i], tmpSources[i]);
-                pendingLearnts.push_back(tmpSources[i]);
             }
 
-            if (pendingLearnts.size() >= conflUpdateThreshold) {
-                cudaLearntAppend(pendingLearnts);
-                pendingLearnts.clear();
-            }
+            pendingLearnts += tmpSources.size();
 
             varDecayActivity();
             claDecayActivity();
@@ -823,12 +826,10 @@ lbool Solver::search(int nof_conflicts)
             if (learnts.size()-nAssigns() >= max_learnts) {
                 // Reduce the set of learnt clauses:
                 reduceDB();
-                pendingLearnts.clear();
                 cudaClauseUpdate();
             } else if (decisionLevel() == 0) {
                 // Simplify has been called.
                 // Learnt clauses might have changed
-                pendingLearnts.clear();
                 cudaLearntUpdate();
             }
 
